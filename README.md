@@ -5,16 +5,16 @@ Next.js App Router と Supabase Auth（`@supabase/ssr`）を使った、コー�
 ## セットアップ
 
 1. Supabase でプロジェクトを作成します。
-2. Supabase Dashboard の **Project Settings → API** から Project URL と anon / publishable key を確認します。
+2. Supabase Dashboard の **Project Settings → API** から Project URL と publishable key を確認します。
 3. プロジェクトのルートに `.env.local` を作成し、次の値を設定します。
 
    ```env
    NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-publishable-or-anon-key
+   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-supabase-publishable-key
    NEXT_PUBLIC_SITE_URL=http://localhost:3000
    ```
 
-   `.env.example` をコピーして値を置き換えても構いません。`NEXT_PUBLIC_` が付く値はブラウザーにも公開されます。Supabase の anon / publishable key のみを設定し、`service_role` / secret key は絶対に設定しないでください。
+   `.env.example` をコピーして値を置き換えても構いません。`NEXT_PUBLIC_` が付く値はブラウザーにも公開されます。Supabase の publishable key のみを設定し、`service_role` / secret key は絶対に設定しないでください。
 
 4. Supabase Dashboard の **Authentication → URL Configuration** で以下を設定します。
    - Site URL: `http://localhost:3000`
@@ -30,7 +30,7 @@ Next.js App Router と Supabase Auth（`@supabase/ssr`）を使った、コー�
 
 ## Vercel へのデプロイ
 
-Vercel の **Project Settings → Environment Variables** に `NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY`、`NEXT_PUBLIC_SITE_URL` を登録します。本番環境では `NEXT_PUBLIC_SITE_URL` を実際の HTTPS ドメインにし、Supabase の Site URL と Redirect URLs に `https://your-domain/auth/callback` を追加してください。
+Vercel の **Project Settings → Environment Variables** に `NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`、`NEXT_PUBLIC_SITE_URL` を登録します。本番環境では `NEXT_PUBLIC_SITE_URL` を実際の HTTPS ドメインにし、Supabase の Site URL と Redirect URLs に `https://your-domain/auth/callback` を追加してください。
 
 ## 実装内容
 
