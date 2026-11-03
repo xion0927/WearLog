@@ -21,7 +21,11 @@ export async function signIn(formData: FormData) {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    redirect("/login?error=" + encodeURIComponent("ログインできませんでした。入力内容をご確認ください。"));
+    const message =
+      error.code === "email_not_confirmed"
+        ? "メールアドレスの確認がまだ完了していません。確認メールのリンクを開いてから、もう一度ログインしてください。"
+        : "ログインできませんでした。メールアドレスとパスワードをご確認ください。";
+    redirect("/login?error=" + encodeURIComponent(message));
   }
 
   revalidatePath("/", "layout");
@@ -40,11 +44,19 @@ export async function signUp(formData: FormData) {
   }
 
   const supabase = await createClient();
+  const callbackOrigin =
+    process.env.VERCEL_ENV === "production" &&
+    process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000");
+
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/auth/callback`,
+      emailRedirectTo: new URL("/auth/callback", callbackOrigin).toString(),
     },
   });
 
