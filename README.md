@@ -14,7 +14,7 @@ Next.js App Router と Supabase Auth（`@supabase/ssr`）を使った、コー�
    NEXT_PUBLIC_SITE_URL=http://localhost:3000
    ```
 
-   `.env.example` をコピーして値を置き換えても構いません。`NEXT_PUBLIC_` が付く値はブラウザーにも公開されます。Supabase の publishable key のみを設定し、`service_role` / secret key は絶対に設定しないでください。
+   `.env.example` をコピーして値を置き換えても構いません。`NEXT_PUBLIC_` が付く値はブラウザーにも公開されます。Supabase の publishable key のみを設定し、`service_role` / secret key は絶対に設定しないでください。`NEXT_PUBLIC_SUPABASE_ANON_KEY` という名前で設定済みの場合も互換性のため利用できますが、新規設定では publishable key 用の変数名を推奨します。
 
 4. Supabase Dashboard の **Authentication → URL Configuration** で以下を設定します。
    - Site URL: `http://localhost:3000`

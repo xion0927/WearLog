@@ -4,12 +4,21 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const supabaseKey =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
-    throw new Error(
-      "Supabase environment variables are missing. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.",
-    );
+    if (request.nextUrl.pathname.startsWith("/dashboard")) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set(
+        "message",
+        "ログイン機能の設定が完了していません。管理者にお問い合わせください。",
+      );
+      return NextResponse.redirect(loginUrl);
+    }
+
+    return response;
   }
 
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
