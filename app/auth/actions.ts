@@ -45,12 +45,12 @@ export async function signUp(formData: FormData) {
 
   const supabase = await createClient();
   const callbackOrigin =
-    process.env.VERCEL_ENV === "production" &&
-    process.env.VERCEL_PROJECT_PRODUCTION_URL
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL
       ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
       : process.env.VERCEL_URL
         ? `https://${process.env.VERCEL_URL}`
-        : (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000");
+        : "http://localhost:3000");
 
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -61,9 +61,20 @@ export async function signUp(formData: FormData) {
   });
 
   if (error) {
+    const errorMessage = error.message.toLowerCase();
+    const message =
+      errorMessage.includes("redirect") &&
+      (errorMessage.includes("allow") || errorMessage.includes("url"))
+        ? "確認メールの送信先URLがSupabaseで許可されていません。SupabaseのRedirect URLsに https://wearlog-pi.vercel.app/auth/callback を追加してください。"
+        : error.code === "user_already_exists" ||
+            errorMessage.includes("already registered")
+          ? "このメールアドレスは既に登録されています。ログインをお試しください。"
+          : error.code === "over_email_send_rate_limit" ||
+              errorMessage.includes("rate limit")
+            ? "確認メールの送信回数が上限に達しました。しばらく待ってからもう一度お試しください。"
+            : `アカウントを作成できませんでした: ${error.message}`;
     redirect(
-      "/signup?error=" +
-        encodeURIComponent("アカウントを作成できませんでした。入力内容をご確認ください。"),
+      "/signup?error=" + encodeURIComponent(message),
     );
   }
 

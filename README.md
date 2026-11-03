@@ -30,7 +30,7 @@ Next.js App Router と Supabase Auth（`@supabase/ssr`）を使った、コー�
 
 ## Vercel へのデプロイ
 
-Vercel の **Project Settings → Environment Variables** に `NEXT_PUBLIC_SUPABASE_URL` と `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` を登録します。本番環境では Supabase の **Authentication → URL Configuration** で Site URL を `https://wearlog-pi.vercel.app` にし、Redirect URLs に `https://wearlog-pi.vercel.app/auth/callback` を追加してください。Vercel の production deployment ではプロジェクトの production URL をメール確認先として使用し、Preview では各 Preview URL を使用します。ローカルは `NEXT_PUBLIC_SITE_URL`（`http://localhost:3000`）を使用します。
+Vercel の **Project Settings → Environment Variables** に `NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`、`NEXT_PUBLIC_SITE_URL=https://wearlog-pi.vercel.app` を登録します。本番環境では Supabase の **Authentication → URL Configuration** で Site URL を `https://wearlog-pi.vercel.app` にし、Redirect URLs に `https://wearlog-pi.vercel.app/auth/callback` を追加してください。ローカルは `.env.local` の `NEXT_PUBLIC_SITE_URL=http://localhost:3000` を使用します。
 
 ## 実装内容
 
