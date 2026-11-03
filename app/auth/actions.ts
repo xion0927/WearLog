@@ -46,8 +46,8 @@ export async function signUp(formData: FormData) {
   const supabase = await createClient();
   const callbackOrigin =
     process.env.NEXT_PUBLIC_SITE_URL ??
-    (process.env.VERCEL_PROJECT_PRODUCTION_URL
-      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    (process.env.VERCEL_ENV === "production"
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL ?? "wearlog-pi.vercel.app"}`
       : process.env.VERCEL_URL
         ? `https://${process.env.VERCEL_URL}`
         : "http://localhost:3000");
