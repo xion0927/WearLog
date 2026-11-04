@@ -23,7 +23,7 @@ export async function signIn(formData: FormData) {
   if (error) {
     const message =
       error.code === "email_not_confirmed"
-        ? "メールアドレスの確認がまだ完了していません。確認メールのコードを /verify-email に入力してください。"
+        ? "メールアドレスの確認がまだ完了していません。確認メールのリンクを開いてから、もう一度ログインしてください。"
         : "ログインできませんでした。メールアドレスとパスワードをご確認ください。";
     redirect("/login?error=" + encodeURIComponent(message));
   }
@@ -44,7 +44,21 @@ export async function signUp(formData: FormData) {
   }
 
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.signUp({ email, password });
+  const callbackOrigin =
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    (process.env.VERCEL_ENV === "production"
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL ?? "wearlog-pi.vercel.app"}`
+      : process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "http://localhost:3000");
+
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: new URL("/auth/callback", callbackOrigin).toString(),
+    },
+  });
 
   if (error) {
     const errorMessage = error.message.toLowerCase();
@@ -69,65 +83,14 @@ export async function signUp(formData: FormData) {
     redirect("/dashboard");
   }
 
-  redirect("/verify-email?message=" + encodeURIComponent("確認コードをメールで送信しました。メールに記載されたコードを入力してください。"));
-}
-
-export async function verifySignupOtp(formData: FormData) {
-  const email = String(formData.get("email") ?? "").trim();
-  const token = String(formData.get("token") ?? "").trim();
-
-  if (!email || !/^\d{6,12}$/.test(token)) {
-    redirect(
-      "/verify-email?error=" +
-        encodeURIComponent("メールアドレスと、メールに記載された確認コードを入力してください。"),
-    );
-  }
-
-  const supabase = await createClient();
-  const { error } = await supabase.auth.verifyOtp({
-    email,
-    token,
-    type: "signup",
-  });
-
-  if (error) {
-    redirect(
-      "/verify-email?error=" +
-        encodeURIComponent("確認コードが正しくないか、有効期限が切れています。新しいコードを再送してください。"),
-    );
-  }
-
-  revalidatePath("/", "layout");
-  redirect("/dashboard");
-}
-
-export async function resendSignupOtp(formData: FormData) {
-  const email = String(formData.get("email") ?? "").trim();
-
-  if (!email) {
-    redirect(
-      "/verify-email?error=" +
-        encodeURIComponent("確認コードを再送するメールアドレスを入力してください。"),
-    );
-  }
-
-  const supabase = await createClient();
-  const { error } = await supabase.auth.resend({
-    type: "signup",
-    email,
-  });
-
-  if (error) {
-    const message =
-      error.code === "over_email_send_rate_limit"
-        ? "確認コードの送信回数が上限に達しました。しばらく待ってから再度お試しください。"
-        : "確認コードを再送できませんでした。メールアドレスをご確認のうえ、時間をおいて再度お試しください。";
-    redirect("/verify-email?error=" + encodeURIComponent(message));
+  if (data.session) {
+    revalidatePath("/", "layout");
+    redirect("/dashboard");
   }
 
   redirect(
-    "/verify-email?message=" +
-      encodeURIComponent("確認コードを再送しました。最新のメールに記載されたコードを入力してください。"),
+    "/login?message=" +
+      encodeURIComponent("確認メールを送信しました。メール内のリンクを開いて認証を完了してください。"),
   );
 }
 

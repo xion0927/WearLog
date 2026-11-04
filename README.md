@@ -26,15 +26,8 @@ Next.js App Router と Supabase Auth（`@supabase/ssr`）を使った、コー�
    npm run dev
    ```
 
-6. Supabase Dashboard の **Authentication → Email Templates → Confirm signup** を開き、テンプレートを確認コード方式にします。確認リンク (`{{ .ConfirmationURL }}`) の代わりに、本文へ `{{ .Token }}` を表示します。例：
-
-   ```html
-   <h2>WearLog の確認コード</h2>
-   <p>次のコードを登録画面で入力してください。</p>
-   <p style="font-size: 24px; font-weight: bold;">{{ .Token }}</p>
-   ```
-
-7. `http://localhost:3000/signup` から登録します。メール内のコードを `/verify-email` に入力すると `/dashboard` に移動します。メールのリンクをクリックする必要はありません。コードが期限切れの場合は、同じページから新しいコードを再送できます。
+6. Supabase Dashboard の **Authentication → Email Templates → Confirm signup** は標準の確認リンク (`{{ .ConfirmationURL }}`) を使用します。メールテンプレートの変更は不要です。
+7. `http://localhost:3000/signup` から登録し、届いたメールの確認リンクを開きます。リンクを開くと `/auth/callback` で認証し、成功すると `/dashboard` に移動します。
 
 ## Vercel へのデプロイ
 
@@ -43,7 +36,6 @@ Vercel の **Project Settings → Environment Variables** に `NEXT_PUBLIC_SUPAB
 ## 実装内容
 
 - `/login` と `/signup` の認証フォーム
-- `/verify-email` でのメール確認コード入力と再送
 - Supabase SSR 用ブラウザー/サーバークライアント
 - `middleware.ts` によるセッション更新と `/dashboard` の未認証アクセス保護
 - メール確認用 `/auth/callback`

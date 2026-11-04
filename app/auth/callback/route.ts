@@ -56,8 +56,8 @@ export async function GET(request: NextRequest) {
     if (!user) {
       const loginUrl = new URL("/login", origin);
       loginUrl.searchParams.set(
-        "error",
-        "メール認証を完了できませんでした。確認リンクが使用済みか期限切れの場合は、ログインをお試しください。",
+        "message",
+        "確認リンクを開きました。登録したメールアドレスとパスワードでログインしてください。",
       );
       return withCookies(NextResponse.redirect(loginUrl), pendingCookies);
     }
