@@ -1,4 +1,5 @@
 import { signOut } from "@/app/auth/actions";
+import { DeleteItemButton } from "@/app/dashboard/delete-item-button";
 import { ItemForm } from "@/app/dashboard/item-form";
 import { createClient } from "@/lib/supabase/server";
 
@@ -100,6 +101,10 @@ export default async function DashboardPage() {
                     <p className="mt-1 text-sm text-muted">
                       {categoryLabels[item.category] ?? item.category}
                     </p>
+                    <DeleteItemButton
+                      itemId={item.id}
+                      itemName={item.name}
+                    />
                   </div>
                 </article>
               ))}
