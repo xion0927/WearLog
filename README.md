@@ -26,13 +26,13 @@ Next.js App Router と Supabase Auth（`@supabase/ssr`）を使った、コー�
    npm run dev
    ```
 
-6. Supabase Dashboard の **SQL Editor** で [`supabase/items.sql`](./supabase/items.sql) の内容を実行します。`items` テーブル、ユーザーごとのRLSポリシー、`item-images` Storageバケットとアップロードポリシーが作成されます。
+6. Supabase Dashboard の **SQL Editor** で [`supabase/items.sql`](./supabase/items.sql) の内容を実行します。`items` テーブル、ユーザーごとのRLSポリシー、`item-images` Storageバケットとアップロードポリシーが作成されます。テーブルを既に作成済みの場合も、このSQLを再実行して `image_url` を任意項目に更新してください。
 7. Supabase Dashboard の **Authentication → Email Templates → Confirm signup** は標準の確認リンク (`{{ .ConfirmationURL }}`) を使用します。メールテンプレートの変更は不要です。
 8. `http://localhost:3000/signup` から登録し、届いたメールの確認リンクを開きます。リンクを開くと `/auth/callback` で認証し、成功すると `/dashboard` に移動します。
 
-## 服アイテム画像について
+## 服アイテム登録について
 
-`item-images` は公開バケットです。アプリでは公開URLを `items.image_url` に保存してカードに表示します。そのため、画像URLを知っている人はログインしていなくても画像を閲覧できます。服の画像を公開したくない場合は、バケットを非公開にする設計（署名付きURLを一覧表示時に発行し、DBにはオブジェクトパスを保存）へ変更してください。アップロードはログインユーザーに限定され、オブジェクトはユーザーIDごとのフォルダーに保存されます。画像形式はJPEG、PNG、WebP、GIF、サイズは5MBまでです。
+服の名前とカテゴリだけで登録できます。画像を追加する場合は `item-images` の公開バケットへアップロードし、公開URLを `items.image_url` に保存します。そのため画像URLを知っている人はログインしていなくても画像を閲覧できます。アップロードはログインユーザーに限定され、オブジェクトはユーザーIDごとのフォルダーに保存されます。画像形式はJPEG、PNG、WebP、GIF、サイズは5MBまでです。
 
 ## Vercel へのデプロイ
 

@@ -80,13 +80,19 @@ export default async function DashboardPage() {
                   key={item.id}
                   className="overflow-hidden rounded-2xl border border-[#e7ebe7] bg-white shadow-sm"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={item.image_url}
-                    alt={item.name}
-                    loading="lazy"
-                    className="aspect-[4/5] w-full bg-sage object-cover"
-                  />
+                  {item.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={item.image_url}
+                      alt={item.name}
+                      loading="lazy"
+                      className="aspect-[4/5] w-full bg-sage object-cover"
+                    />
+                  ) : (
+                    <div className="flex aspect-[4/5] items-center justify-center bg-sage text-sm text-forest">
+                      画像なし
+                    </div>
+                  )}
                   <div className="p-4">
                     <p className="truncate font-semibold" title={item.name}>
                       {item.name}

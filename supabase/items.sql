@@ -5,9 +5,11 @@ create table if not exists public.items (
   category text not null check (
     category in ('tops', 'bottoms', 'outerwear', 'shoes', 'other')
   ),
-  image_url text not null,
+  image_url text,
   created_at timestamptz not null default now()
 );
+
+alter table public.items alter column image_url drop not null;
 
 create index if not exists items_user_created_at_idx
   on public.items (user_id, created_at desc);

@@ -38,7 +38,9 @@ export function ItemForm() {
     const formData = new FormData(form);
     const name = String(formData.get("name") ?? "").trim();
     const category = String(formData.get("category") ?? "");
-    const image = formData.get("image");
+    const imageEntry = formData.get("image");
+    const image =
+      imageEntry instanceof File && imageEntry.size > 0 ? imageEntry : null;
 
     if (!name || name.length > 100) {
       setErrorMessage("服の名前は1〜100文字で入力してください。");
@@ -50,20 +52,18 @@ export function ItemForm() {
       return;
     }
 
-    if (!(image instanceof File) || image.size === 0) {
-      setErrorMessage("画像ファイルを選択してください。");
-      return;
-    }
+    let extension: string | undefined;
+    if (image) {
+      extension = imageExtensions[image.type];
+      if (!extension) {
+        setErrorMessage("JPEG、PNG、WebP、GIF形式の画像を選択してください。");
+        return;
+      }
 
-    const extension = imageExtensions[image.type];
-    if (!extension) {
-      setErrorMessage("JPEG、PNG、WebP、GIF形式の画像を選択してください。");
-      return;
-    }
-
-    if (image.size > maxImageSize) {
-      setErrorMessage("画像サイズは5MB以下にしてください。");
-      return;
+      if (image.size > maxImageSize) {
+        setErrorMessage("画像サイズは5MB以下にしてください。");
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -83,35 +83,48 @@ export function ItemForm() {
       return;
     }
 
-    const imagePath = `${user.id}/${crypto.randomUUID()}.${extension}`;
-    const { error: uploadError } = await supabase.storage
-      .from("item-images")
-      .upload(imagePath, image, {
-        contentType: image.type,
-        cacheControl: "3600",
-        upsert: false,
-      });
+    let imagePath: string | null = null;
+    let imageUrl: string | null = null;
 
-    if (uploadError) {
-      setErrorMessage(`画像をアップロードできませんでした: ${uploadError.message}`);
-      setIsSubmitting(false);
-      return;
+    if (image && extension) {
+      imagePath = `${user.id}/${crypto.randomUUID()}.${extension}`;
+      const { error: uploadError } = await supabase.storage
+        .from("item-images")
+        .upload(imagePath, image, {
+          contentType: image.type,
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (uploadError) {
+        setErrorMessage(
+          `画像をアップロードできませんでした: ${uploadError.message}`,
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("item-images").getPublicUrl(imagePath);
+      imageUrl = publicUrl;
     }
 
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("item-images").getPublicUrl(imagePath);
     const { error: insertError } = await supabase.from("items").insert({
       user_id: user.id,
       name,
       category,
-      image_url: publicUrl,
+      image_url: imageUrl,
     });
 
     if (insertError) {
-      const { error: cleanupError } = await supabase.storage
-        .from("item-images")
-        .remove([imagePath]);
+      const cleanupError = imagePath
+        ? (
+            await supabase.storage
+              .from("item-images")
+              .remove([imagePath])
+          ).error
+        : null;
       const cleanupMessage = cleanupError
         ? ` 画像の後片付けにも失敗しました: ${cleanupError.message}`
         : "";
@@ -185,12 +198,11 @@ export function ItemForm() {
         </label>
 
         <label className="text-sm font-medium">
-          画像
+          画像（任意）
           <input
             name="image"
             type="file"
             accept="image/jpeg,image/png,image/webp,image/gif"
-            required
             className="mt-2 block w-full rounded-xl border border-[#dce3dd] bg-white px-3 py-2.5 text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-sage file:px-3 file:py-2 file:font-medium file:text-forest"
           />
         </label>
