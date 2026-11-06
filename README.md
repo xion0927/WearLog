@@ -42,6 +42,7 @@ Vercel の **Project Settings → Environment Variables** に `NEXT_PUBLIC_SUPAB
 
 - `/login` と `/signup` の認証フォーム
 - `/dashboard` での服アイテム登録・一覧表示
+- カテゴリごとの絞り込みとカテゴリ順の一覧表示
 - 登録した服アイテムの削除
 - Supabase Storage への画像アップロードとユーザー別アクセス制御
 - Supabase SSR 用ブラウザー/サーバークライアント

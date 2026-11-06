@@ -1,17 +1,9 @@
 import { signOut } from "@/app/auth/actions";
-import { DeleteItemButton } from "@/app/dashboard/delete-item-button";
 import { ItemForm } from "@/app/dashboard/item-form";
+import { ItemGrid } from "@/app/dashboard/item-grid";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
-
-const categoryLabels: Record<string, string> = {
-  tops: "トップス",
-  bottoms: "ボトムス",
-  outerwear: "アウター",
-  shoes: "シューズ",
-  other: "その他",
-};
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -74,51 +66,8 @@ export default async function DashboardPage() {
             >
               服の一覧を読み込めませんでした: {itemsError.message}
             </p>
-          ) : items?.length ? (
-            <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              {items.map((item) => (
-                <article
-                  key={item.id}
-                  className="overflow-hidden rounded-2xl border border-[#e7ebe7] bg-white shadow-sm"
-                >
-                  {item.image_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={item.image_url}
-                      alt={item.name}
-                      loading="lazy"
-                      className="aspect-[4/5] w-full bg-sage object-cover"
-                    />
-                  ) : (
-                    <div className="flex aspect-[4/5] items-center justify-center bg-sage text-sm text-forest">
-                      画像なし
-                    </div>
-                  )}
-                  <div className="p-4">
-                    <p className="truncate font-semibold" title={item.name}>
-                      {item.name}
-                    </p>
-                    <p className="mt-1 text-sm text-muted">
-                      {categoryLabels[item.category] ?? item.category}
-                    </p>
-                    <DeleteItemButton
-                      itemId={item.id}
-                      itemName={item.name}
-                    />
-                  </div>
-                </article>
-              ))}
-            </div>
           ) : (
-            <div className="mt-6 rounded-2xl border border-dashed border-[#cbd8ce] bg-white px-6 py-12 text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-sage text-2xl text-forest">
-                +
-              </div>
-              <h3 className="mt-4 font-semibold">まだ服が登録されていません</h3>
-              <p className="mt-2 text-sm text-muted">
-                上のフォームから最初のアイテムを追加しましょう。
-              </p>
-            </div>
+            <ItemGrid items={items ?? []} />
           )}
         </section>
       </section>
