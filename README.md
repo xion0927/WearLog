@@ -1,6 +1,6 @@
 # WearLog
 
-Next.js App Router と Supabase Auth（`@supabase/ssr`）を使った、コーデ記録アプリの認証部分です。
+Next.js App Router と Supabase Auth（`@supabase/ssr`）を使った、コーデ記録アプリです。ログイン後のダッシュボードで、服アイテムを登録・一覧表示できます。
 
 ## セットアップ
 
@@ -26,8 +26,13 @@ Next.js App Router と Supabase Auth（`@supabase/ssr`）を使った、コー�
    npm run dev
    ```
 
-6. Supabase Dashboard の **Authentication → Email Templates → Confirm signup** は標準の確認リンク (`{{ .ConfirmationURL }}`) を使用します。メールテンプレートの変更は不要です。
-7. `http://localhost:3000/signup` から登録し、届いたメールの確認リンクを開きます。リンクを開くと `/auth/callback` で認証し、成功すると `/dashboard` に移動します。
+6. Supabase Dashboard の **SQL Editor** で [`supabase/items.sql`](./supabase/items.sql) の内容を実行します。`items` テーブル、ユーザーごとのRLSポリシー、`item-images` Storageバケットとアップロードポリシーが作成されます。
+7. Supabase Dashboard の **Authentication → Email Templates → Confirm signup** は標準の確認リンク (`{{ .ConfirmationURL }}`) を使用します。メールテンプレートの変更は不要です。
+8. `http://localhost:3000/signup` から登録し、届いたメールの確認リンクを開きます。リンクを開くと `/auth/callback` で認証し、成功すると `/dashboard` に移動します。
+
+## 服アイテム画像について
+
+`item-images` は公開バケットです。アプリでは公開URLを `items.image_url` に保存してカードに表示します。そのため、画像URLを知っている人はログインしていなくても画像を閲覧できます。服の画像を公開したくない場合は、バケットを非公開にする設計（署名付きURLを一覧表示時に発行し、DBにはオブジェクトパスを保存）へ変更してください。アップロードはログインユーザーに限定され、オブジェクトはユーザーIDごとのフォルダーに保存されます。画像形式はJPEG、PNG、WebP、GIF、サイズは5MBまでです。
 
 ## Vercel へのデプロイ
 
@@ -36,6 +41,8 @@ Vercel の **Project Settings → Environment Variables** に `NEXT_PUBLIC_SUPAB
 ## 実装内容
 
 - `/login` と `/signup` の認証フォーム
+- `/dashboard` での服アイテム登録・一覧表示
+- Supabase Storage への画像アップロードとユーザー別アクセス制御
 - Supabase SSR 用ブラウザー/サーバークライアント
 - `middleware.ts` によるセッション更新と `/dashboard` の未認証アクセス保護
 - メール確認用 `/auth/callback`
