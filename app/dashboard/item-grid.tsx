@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { DeleteItemButton } from "@/app/dashboard/delete-item-button";
+import { ItemDetails } from "@/app/dashboard/item-details";
 
 const categories = [
   { value: "all", label: "すべて" },
@@ -88,7 +88,7 @@ export function ItemGrid({ items }: ItemGridProps) {
           {visibleItems.map((item) => (
             <article
               key={item.id}
-              className="overflow-hidden rounded-2xl border border-[#e7ebe7] bg-white shadow-sm"
+              className="relative overflow-hidden rounded-2xl border border-[#e7ebe7] bg-white shadow-sm"
             >
               {item.image_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -111,8 +111,8 @@ export function ItemGrid({ items }: ItemGridProps) {
                   {categories.find((category) => category.value === item.category)
                     ?.label ?? item.category}
                 </p>
-                <DeleteItemButton itemId={item.id} itemName={item.name} />
               </div>
+              <ItemDetails item={item} />
             </article>
           ))}
         </div>
