@@ -133,18 +133,14 @@ export function OutfitForm({ items }: OutfitFormProps) {
         .getPublicUrl(imagePath).data.publicUrl;
     }
 
-    const { data: outfit, error: outfitError } = await supabase
-      .from("outfits")
-      .insert({
-        user_id: user.id,
-        date,
-        memo: memo.trim() || null,
-        image_url: imageUrl,
-      })
-      .select("id")
-      .single();
+    const { error: saveError } = await supabase.rpc("save_outfit", {
+      p_date: date,
+      p_memo: memo.trim() || null,
+      p_image_url: imageUrl,
+      p_item_ids: selectedItemIds,
+    });
 
-    if (outfitError) {
+    if (saveError) {
       const cleanupError = imagePath
         ? (
             await supabase.storage
@@ -156,46 +152,10 @@ export function OutfitForm({ items }: OutfitFormProps) {
         ? ` 画像の後片付けにも失敗しました: ${cleanupError.message}`
         : "";
       setErrorMessage(
-        `コーデを保存できませんでした: ${outfitError.message}${cleanupMessage}`,
+        `コーデを保存できませんでした: ${saveError.message}${cleanupMessage}`,
       );
       setIsSubmitting(false);
       return;
-    }
-
-    if (selectedItemIds.length > 0) {
-      const outfitItems = selectedItemIds.map((itemId) => ({
-        outfit_id: outfit.id,
-        item_id: itemId,
-      }));
-      const { error: relationError } = await supabase
-        .from("outfit_items")
-        .insert(outfitItems);
-
-      if (relationError) {
-        const { error: rollbackError } = await supabase
-          .from("outfits")
-          .delete()
-          .eq("id", outfit.id)
-          .eq("user_id", user.id);
-        const cleanupError = imagePath
-          ? (
-              await supabase.storage
-                .from("outfit-images")
-                .remove([imagePath])
-            ).error
-          : null;
-        const rollbackMessage = rollbackError
-          ? ` コーデ記録の取り消しに失敗しました: ${rollbackError.message}`
-          : "";
-        const cleanupMessage = cleanupError
-          ? ` 画像の後片付けにも失敗しました: ${cleanupError.message}`
-          : "";
-        setErrorMessage(
-          `選択した服を保存できませんでした: ${relationError.message}${rollbackMessage}${cleanupMessage}`,
-        );
-        setIsSubmitting(false);
-        return;
-      }
     }
 
     setMemo("");
@@ -204,7 +164,7 @@ export function OutfitForm({ items }: OutfitFormProps) {
     form.reset();
     router.push(
       `/dashboard?outfitSaved=${encodeURIComponent(
-        `${date}のコーデを保存しました。`,
+        `${date}のコーデを上書き保存しました。`,
       )}`,
     );
   }
@@ -236,7 +196,7 @@ export function OutfitForm({ items }: OutfitFormProps) {
       </label>
 
       <label className="block text-sm font-medium">
-        メモ（任意）
+        メモ
         <textarea
           name="memo"
           value={memo}
@@ -249,7 +209,7 @@ export function OutfitForm({ items }: OutfitFormProps) {
       </label>
 
       <label className="block text-sm font-medium">
-        コーデ全体の画像（任意）
+        コーデ全体の画像
         <input
           name="image"
           type="file"
@@ -392,7 +352,7 @@ export function OutfitForm({ items }: OutfitFormProps) {
           disabled={isSubmitting}
           className="rounded-xl bg-forest px-6 py-3 font-semibold text-white transition hover:bg-[#264b39] focus:outline-none focus:ring-4 focus:ring-sage disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isSubmitting ? "保存中..." : "コーデを保存する"}
+          {isSubmitting ? "保存中..." : "この日のコーデを保存"}
         </button>
       </div>
     </form>

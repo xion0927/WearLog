@@ -198,7 +198,7 @@ export function ItemForm() {
         </label>
 
         <label className="text-sm font-medium">
-          画像（任意）
+          画像
           <input
             name="image"
             type="file"

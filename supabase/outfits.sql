@@ -10,6 +10,23 @@ create table if not exists public.outfits (
 create index if not exists outfits_user_date_idx
   on public.outfits (user_id, date desc);
 
+with ranked_outfits as (
+  select
+    id,
+    row_number() over (
+      partition by user_id, date
+      order by created_at desc, id desc
+    ) as duplicate_rank
+  from public.outfits
+)
+delete from public.outfits
+using ranked_outfits
+where outfits.id = ranked_outfits.id
+  and ranked_outfits.duplicate_rank > 1;
+
+create unique index if not exists outfits_user_date_unique_idx
+  on public.outfits (user_id, date);
+
 alter table public.outfits enable row level security;
 
 drop policy if exists "Users can read their own outfits" on public.outfits;
@@ -90,6 +107,48 @@ create policy "Users can remove items from their own outfits"
         and outfits.user_id = (select auth.uid())
     )
   );
+
+create or replace function public.save_outfit(
+  p_date date,
+  p_memo text,
+  p_image_url text,
+  p_item_ids uuid[]
+)
+returns uuid
+language plpgsql
+set search_path = public
+as $$
+declare
+  current_user_id uuid := auth.uid();
+  saved_outfit_id uuid;
+begin
+  if current_user_id is null then
+    raise exception 'ログインが必要です。';
+  end if;
+
+  insert into public.outfits (user_id, date, memo, image_url)
+  values (current_user_id, p_date, p_memo, p_image_url)
+  on conflict (user_id, date) do update
+    set memo = excluded.memo,
+        image_url = coalesce(excluded.image_url, outfits.image_url)
+  returning id into saved_outfit_id;
+
+  delete from public.outfit_items
+  where outfit_id = saved_outfit_id;
+
+  insert into public.outfit_items (outfit_id, item_id)
+  select saved_outfit_id, selected.item_id
+  from (
+    select distinct item_id
+    from unnest(coalesce(p_item_ids, '{}'::uuid[])) as selected_items(item_id)
+  ) as selected;
+
+  return saved_outfit_id;
+end;
+$$;
+
+revoke all on function public.save_outfit(date, text, text, uuid[]) from public, anon;
+grant execute on function public.save_outfit(date, text, text, uuid[]) to authenticated;
 
 insert into storage.buckets (
   id,

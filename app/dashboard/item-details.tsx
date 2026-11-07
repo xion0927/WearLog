@@ -329,7 +329,7 @@ export function ItemDetails({ item }: ItemDetailsProps) {
               )}
 
               <label className="block text-sm font-medium">
-                画像を追加・変更（任意）
+                画像を追加・変更
                 <input
                   name="image"
                   type="file"

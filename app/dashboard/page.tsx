@@ -2,6 +2,7 @@ import { signOut } from "@/app/auth/actions";
 import Link from "next/link";
 import { ItemForm } from "@/app/dashboard/item-form";
 import { ItemGrid } from "@/app/dashboard/item-grid";
+import { OutfitHistory } from "@/app/dashboard/outfit-history";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -71,9 +72,17 @@ export default async function DashboardPage({
           >
             今日のコーデを記録する
           </Link>
+          <Link
+            href="#outfit-history"
+            className="ml-3 inline-flex items-center justify-center rounded-xl border border-[#dce3dd] bg-white px-5 py-3 font-semibold text-forest transition hover:bg-sage focus:outline-none focus:ring-4 focus:ring-sage"
+          >
+            コーデの記録を見る
+          </Link>
         </div>
 
         <ItemForm />
+
+        <OutfitHistory />
 
         <section className="mt-14">
           <div className="flex items-end justify-between gap-4">
