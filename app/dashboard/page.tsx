@@ -3,7 +3,9 @@ import Link from "next/link";
 import { ItemForm } from "@/app/dashboard/item-form";
 import { ItemGrid } from "@/app/dashboard/item-grid";
 import { OutfitHistory } from "@/app/dashboard/outfit-history";
+import { TemplateGrid } from "@/app/dashboard/template-grid";
 import { createClient } from "@/lib/supabase/server";
+import { removeUnusedImagesForUser } from "@/lib/supabase/image-cleanup";
 
 export const dynamic = "force-dynamic";
 
@@ -24,10 +26,28 @@ export default async function DashboardPage({
     return null;
   }
 
+  const imageCleanup = await removeUnusedImagesForUser(user.id);
   const { data: items, error: itemsError } = await supabase
     .from("items")
     .select("id, name, category, image_url, created_at")
     .order("created_at", { ascending: false });
+  const { data: templateData, error: templatesError } = await supabase
+    .from("outfit_templates")
+    .select(
+      "id, name, memo, image_url, created_at, outfit_template_items(item:items(id, name, category, image_url))",
+    )
+    .order("created_at", { ascending: false });
+  const templates =
+    templateData?.map((template) => ({
+      id: template.id,
+      name: template.name,
+      memo: template.memo,
+      image_url: template.image_url,
+      created_at: template.created_at,
+      items: template.outfit_template_items.flatMap(({ item }) =>
+        Array.isArray(item) ? item : item ? [item] : [],
+      ),
+    })) ?? [];
 
   return (
     <main className="min-h-screen">
@@ -64,6 +84,24 @@ export default async function DashboardPage({
             {outfitSaved}
           </p>
         )}
+        {imageCleanup.warning ? (
+          <p
+            role="alert"
+            className="mt-5 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800"
+          >
+            未使用画像を整理できませんでした: {imageCleanup.warning}
+            Supabase SQL Editorで最新版の `supabase/items.sql` と
+            `supabase/outfits.sql` を実行してください。
+          </p>
+        ) : imageCleanup.removedCount > 0 ? (
+          <p
+            role="status"
+            className="mt-5 rounded-xl bg-sage px-4 py-3 text-sm text-forest"
+          >
+            どこからも使用されていない画像を
+            {imageCleanup.removedCount} 件削除しました。
+          </p>
+        ) : null}
 
         <div className="mt-8">
           <Link
@@ -83,6 +121,31 @@ export default async function DashboardPage({
         <ItemForm />
 
         <OutfitHistory />
+
+        <section>
+          {templatesError ? (
+            <p
+              role="alert"
+              className="mt-14 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800"
+            >
+              テンプレートを読み込めませんでした: {templatesError.message}
+              。Supabase SQL Editorで最新版の
+              `supabase/outfits.sql`を実行してください。
+            </p>
+          ) : (
+            <TemplateGrid
+              templates={templates}
+              wardrobeItems={(items ?? []).map(
+                ({ id, name, category, image_url }) => ({
+                  id,
+                  name,
+                  category,
+                  image_url,
+                }),
+              )}
+            />
+          )}
+        </section>
 
         <section className="mt-14">
           <div className="flex items-end justify-between gap-4">

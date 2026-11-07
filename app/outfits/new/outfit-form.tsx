@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { cleanupUnusedImage } from "@/app/image-actions";
 import { createClient } from "@/lib/supabase/client";
 
 const categories = [
@@ -59,6 +60,10 @@ export function OutfitForm({ items, templates }: OutfitFormProps) {
   const [saveMode, setSaveMode] = useState<"new" | "template">("new");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [memo, setMemo] = useState("");
+  const [saveAsTemplate, setSaveAsTemplate] = useState(true);
+  const [templateName, setTemplateName] = useState(
+    `${getLocalDate()}のコーデ`,
+  );
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [errorMessage, setErrorMessage] = useState("");
@@ -112,6 +117,10 @@ export function OutfitForm({ items, templates }: OutfitFormProps) {
       setErrorMessage("使用するテンプレートを選択してください。");
       return;
     }
+    if (saveMode === "new" && saveAsTemplate && !templateName.trim()) {
+      setErrorMessage("テンプレート名を入力してください。");
+      return;
+    }
 
     const formData = new FormData(form);
     const imageEntry = formData.get("image");
@@ -145,6 +154,21 @@ export function OutfitForm({ items, templates }: OutfitFormProps) {
       return;
     }
 
+    const { data: existingOutfit, error: existingOutfitError } = await supabase
+      .from("outfits")
+      .select("image_url")
+      .eq("user_id", user.id)
+      .eq("date", date)
+      .maybeSingle();
+
+    if (existingOutfitError) {
+      setErrorMessage(
+        `既存のコーデ画像を確認できませんでした: ${existingOutfitError.message}`,
+      );
+      setIsSubmitting(false);
+      return;
+    }
+
     let imagePath: string | null = null;
     let imageUrl: string | null = null;
 
@@ -171,23 +195,28 @@ export function OutfitForm({ items, templates }: OutfitFormProps) {
         .getPublicUrl(imagePath).data.publicUrl;
     }
 
-    const { error: saveError } = await supabase.rpc("save_outfit", {
+    const effectiveImageUrl =
+      imageUrl ??
+      (saveMode === "template" ? selectedTemplate?.imageUrl : null) ??
+      null;
+    const { error: saveError } = await supabase.rpc("save_outfit_with_template", {
       p_date: date,
       p_memo: memo.trim() || null,
-      p_image_url: imageUrl ?? selectedTemplate?.imageUrl ?? null,
+      p_image_url: effectiveImageUrl,
       p_item_ids: selectedItemIds,
+      p_save_as_template: saveMode === "new" && saveAsTemplate,
+      p_template_name:
+        saveMode === "new" && saveAsTemplate
+          ? templateName.trim()
+          : null,
     });
 
     if (saveError) {
-      const cleanupError = imagePath
-        ? (
-            await supabase.storage
-              .from("outfit-images")
-              .remove([imagePath])
-          ).error
-        : null;
-      const cleanupMessage = cleanupError
-        ? ` 画像の後片付けにも失敗しました: ${cleanupError.message}`
+      const cleanupResult = imagePath
+        ? await cleanupUnusedImage(imageUrl)
+        : {};
+      const cleanupMessage = cleanupResult.warning
+        ? ` ${cleanupResult.warning}`
         : "";
       setErrorMessage(
         `コーデを保存できませんでした: ${saveError.message}${cleanupMessage}`,
@@ -196,13 +225,24 @@ export function OutfitForm({ items, templates }: OutfitFormProps) {
       return;
     }
 
+    let cleanupWarning = "";
+    if (
+      existingOutfit?.image_url &&
+      existingOutfit.image_url !== effectiveImageUrl
+    ) {
+      const cleanupResult = await cleanupUnusedImage(existingOutfit.image_url);
+      cleanupWarning = cleanupResult.warning ?? "";
+    }
+
     setMemo("");
     setSelectedItemIds([]);
     setDate(getLocalDate());
     form.reset();
     router.push(
       `/dashboard?outfitSaved=${encodeURIComponent(
-        `${date}のコーデを上書き保存しました。`,
+        `${saveMode === "new" && saveAsTemplate
+          ? `${date}のコーデを保存し、テンプレート「${templateName.trim()}」にも登録しました。`
+          : `${date}のコーデを上書き保存しました。`}${cleanupWarning ? ` ${cleanupWarning}` : ""}`,
       )}`,
     );
   }
@@ -342,6 +382,38 @@ export function OutfitForm({ items, templates }: OutfitFormProps) {
           placeholder="天気や気分、コーデのポイントなど"
         />
       </label>
+
+      {saveMode === "new" && (
+        <fieldset className="rounded-xl border border-[#e7ebe7] bg-[#f7f8f6] p-4">
+          <label className="flex items-start gap-3 text-sm font-medium">
+            <input
+              type="checkbox"
+              checked={saveAsTemplate}
+              onChange={(event) => setSaveAsTemplate(event.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-[#315b48] focus:ring-4 focus:ring-sage"
+            />
+            <span>
+              <span className="block">テンプレートとして登録する</span>
+              <span className="mt-1 block font-normal text-muted">
+                次回からこのコーデを呼び出せます。
+              </span>
+            </span>
+          </label>
+          {saveAsTemplate && (
+            <label className="mt-4 block text-sm font-medium">
+              テンプレート名
+              <input
+                type="text"
+                value={templateName}
+                onChange={(event) => setTemplateName(event.target.value)}
+                maxLength={80}
+                required
+                className={fieldClassName}
+              />
+            </label>
+          )}
+        </fieldset>
+      )}
 
       {saveMode === "new" && (
         <label className="block text-sm font-medium">

@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { deleteItem } from "@/app/dashboard/item-actions";
+import { cleanupUnusedImage } from "@/app/image-actions";
 import { createClient } from "@/lib/supabase/client";
 
 const categories = [
@@ -21,7 +22,6 @@ const imageExtensions: Record<string, string> = {
 };
 
 const maxImageSize = 5 * 1024 * 1024;
-const publicImagePrefix = "/storage/v1/object/public/item-images/";
 const fieldClassName =
   "mt-2 w-full rounded-xl border border-[#dce3dd] bg-white px-4 py-3 text-ink outline-none transition focus:border-forest focus:ring-4 focus:ring-sage";
 
@@ -125,15 +125,11 @@ export function ItemDetails({ item }: ItemDetailsProps) {
       .maybeSingle();
 
     if (updateError) {
-      const cleanupError = newImagePath
-        ? (
-            await supabase.storage
-              .from("item-images")
-              .remove([newImagePath])
-          ).error
-        : null;
-      const cleanupMessage = cleanupError
-        ? ` 新しい画像の後片付けにも失敗しました: ${cleanupError.message}`
+      const cleanupResult = newImagePath
+        ? await cleanupUnusedImage(newImageUrl)
+        : {};
+      const cleanupMessage = cleanupResult.warning
+        ? ` ${cleanupResult.warning}`
         : "";
       setErrorMessage(
         `アイテムを更新できませんでした: ${updateError.message}${cleanupMessage}`,
@@ -142,15 +138,11 @@ export function ItemDetails({ item }: ItemDetailsProps) {
       return;
     }
     if (!updatedItem) {
-      const cleanupError = newImagePath
-        ? (
-            await supabase.storage
-              .from("item-images")
-              .remove([newImagePath])
-          ).error
-        : null;
-      const cleanupMessage = cleanupError
-        ? ` 新しい画像の後片付けにも失敗しました: ${cleanupError.message}`
+      const cleanupResult = newImagePath
+        ? await cleanupUnusedImage(newImageUrl)
+        : {};
+      const cleanupMessage = cleanupResult.warning
+        ? ` ${cleanupResult.warning}`
         : "";
       setErrorMessage(
         `アイテムが見つからないか、更新する権限がありません。${cleanupMessage}`,
@@ -159,40 +151,17 @@ export function ItemDetails({ item }: ItemDetailsProps) {
       return;
     }
 
-    if (newImagePath && item.image_url) {
-      try {
-        const oldImageUrl = new URL(item.image_url);
-        if (oldImageUrl.pathname.startsWith(publicImagePrefix)) {
-          const oldImagePath = decodeURIComponent(
-            oldImageUrl.pathname.slice(publicImagePrefix.length),
-          );
-          if (oldImagePath.startsWith(`${user.id}/`)) {
-            const { error: cleanupError } = await supabase.storage
-              .from("item-images")
-              .remove([oldImagePath]);
-            if (cleanupError) {
-              setErrorMessage(
-                `情報は更新しましたが、古い画像を削除できませんでした: ${cleanupError.message}`,
-              );
-              setIsSubmitting(false);
-              router.refresh();
-              return;
-            }
-          }
-        }
-      } catch (error) {
-        setErrorMessage(
-          error instanceof Error
-            ? `情報は更新しましたが、古い画像URLを確認できませんでした: ${error.message}`
-            : "情報は更新しましたが、古い画像URLを確認できませんでした。",
-        );
-        setIsSubmitting(false);
-        router.refresh();
-        return;
-      }
+    let cleanupWarning = "";
+    if (newImagePath && item.image_url !== newImageUrl) {
+      const cleanupResult = await cleanupUnusedImage(item.image_url);
+      cleanupWarning = cleanupResult.warning ?? "";
     }
 
-    setSuccessMessage("アイテムを更新しました。");
+    setSuccessMessage(
+      cleanupWarning
+        ? `アイテムを更新しました。${cleanupWarning}`
+        : "アイテムを更新しました。",
+    );
     setIsSubmitting(false);
     router.refresh();
   }
@@ -214,6 +183,9 @@ export function ItemDetails({ item }: ItemDetailsProps) {
 
     setIsOpen(false);
     router.refresh();
+    if (result.warning) {
+      window.alert(result.warning);
+    }
   }
 
   return (

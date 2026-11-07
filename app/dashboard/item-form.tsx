@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { cleanupUnusedImage } from "@/app/image-actions";
 import { createClient } from "@/lib/supabase/client";
 
 const categories = [
@@ -118,15 +119,11 @@ export function ItemForm() {
     });
 
     if (insertError) {
-      const cleanupError = imagePath
-        ? (
-            await supabase.storage
-              .from("item-images")
-              .remove([imagePath])
-          ).error
-        : null;
-      const cleanupMessage = cleanupError
-        ? ` 画像の後片付けにも失敗しました: ${cleanupError.message}`
+      const cleanupResult = imagePath
+        ? await cleanupUnusedImage(imageUrl)
+        : {};
+      const cleanupMessage = cleanupResult.warning
+        ? ` ${cleanupResult.warning}`
         : "";
       setErrorMessage(
         `服を保存できませんでした: ${insertError.message}${cleanupMessage}`,

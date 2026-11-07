@@ -93,6 +93,13 @@ create policy "Users can add their own outfit templates"
   to authenticated
   with check ((select auth.uid()) = user_id);
 
+drop policy if exists "Users can update their own outfit templates" on public.outfit_templates;
+create policy "Users can update their own outfit templates"
+  on public.outfit_templates for update
+  to authenticated
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
+
 drop policy if exists "Users can delete their own outfit templates" on public.outfit_templates;
 create policy "Users can delete their own outfit templates"
   on public.outfit_templates for delete
@@ -216,7 +223,7 @@ begin
   values (current_user_id, p_date, p_memo, p_image_url)
   on conflict (user_id, date) do update
     set memo = excluded.memo,
-        image_url = coalesce(excluded.image_url, outfits.image_url)
+        image_url = excluded.image_url
   returning id into saved_outfit_id;
 
   delete from public.outfit_items
@@ -235,6 +242,60 @@ $$;
 
 revoke all on function public.save_outfit(date, text, text, uuid[]) from public, anon;
 grant execute on function public.save_outfit(date, text, text, uuid[]) to authenticated;
+
+create or replace function public.save_outfit_with_template(
+  p_date date,
+  p_memo text,
+  p_image_url text,
+  p_item_ids uuid[],
+  p_save_as_template boolean,
+  p_template_name text
+)
+returns uuid
+language plpgsql
+set search_path = public
+as $$
+declare
+  current_user_id uuid := auth.uid();
+  saved_outfit_id uuid;
+  saved_template_id uuid;
+begin
+  if current_user_id is null then
+    raise exception 'ログインが必要です。';
+  end if;
+
+  if coalesce(p_save_as_template, false)
+     and (p_template_name is null or char_length(trim(p_template_name)) not between 1 and 80) then
+    raise exception 'テンプレート名は1〜80文字で入力してください。';
+  end if;
+
+  saved_outfit_id := public.save_outfit(
+    p_date,
+    p_memo,
+    p_image_url,
+    p_item_ids
+  );
+
+  if coalesce(p_save_as_template, false) then
+    insert into public.outfit_templates (user_id, name, memo, image_url)
+    select current_user_id, trim(p_template_name), outfits.memo, outfits.image_url
+    from public.outfits
+    where outfits.id = saved_outfit_id
+      and outfits.user_id = current_user_id
+    returning id into saved_template_id;
+
+    insert into public.outfit_template_items (template_id, item_id)
+    select saved_template_id, outfit_items.item_id
+    from public.outfit_items
+    where outfit_items.outfit_id = saved_outfit_id;
+  end if;
+
+  return saved_outfit_id;
+end;
+$$;
+
+revoke all on function public.save_outfit_with_template(date, text, text, uuid[], boolean, text) from public, anon;
+grant execute on function public.save_outfit_with_template(date, text, text, uuid[], boolean, text) to authenticated;
 
 create or replace function public.save_outfit_template(
   p_outfit_id uuid,
@@ -279,6 +340,58 @@ $$;
 revoke all on function public.save_outfit_template(uuid, text) from public, anon;
 grant execute on function public.save_outfit_template(uuid, text) to authenticated;
 
+create or replace function public.update_outfit_template(
+  p_template_id uuid,
+  p_name text,
+  p_memo text,
+  p_image_url text,
+  p_item_ids uuid[]
+)
+returns void
+language plpgsql
+set search_path = public
+as $$
+declare
+  current_user_id uuid := auth.uid();
+begin
+  if current_user_id is null then
+    raise exception 'ログインが必要です。';
+  end if;
+
+  if p_name is null or char_length(trim(p_name)) not between 1 and 80 then
+    raise exception 'テンプレート名は1〜80文字で入力してください。';
+  end if;
+
+  if p_memo is not null and char_length(p_memo) > 2000 then
+    raise exception 'メモは2000文字以内で入力してください。';
+  end if;
+
+  update public.outfit_templates
+  set name = trim(p_name),
+      memo = p_memo,
+      image_url = p_image_url
+  where id = p_template_id
+    and user_id = current_user_id;
+
+  if not found then
+    raise exception 'テンプレートが見つかりません。';
+  end if;
+
+  delete from public.outfit_template_items
+  where template_id = p_template_id;
+
+  insert into public.outfit_template_items (template_id, item_id)
+  select p_template_id, selected.item_id
+  from (
+    select distinct item_id
+    from unnest(coalesce(p_item_ids, '{}'::uuid[])) as selected_items(item_id)
+  ) as selected;
+end;
+$$;
+
+revoke all on function public.update_outfit_template(uuid, text, text, text, uuid[]) from public, anon;
+grant execute on function public.update_outfit_template(uuid, text, text, text, uuid[]) to authenticated;
+
 insert into storage.buckets (
   id,
   name,
@@ -298,6 +411,15 @@ set
   public = excluded.public,
   file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "Users can list their own outfit images" on storage.objects;
+create policy "Users can list their own outfit images"
+  on storage.objects for select
+  to authenticated
+  using (
+    bucket_id = 'outfit-images'
+    and (storage.foldername(name))[1] = (select auth.uid()::text)
+  );
 
 drop policy if exists "Users can upload their own outfit images" on storage.objects;
 create policy "Users can upload their own outfit images"

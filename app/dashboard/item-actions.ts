@@ -2,13 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { removeImageIfUnused } from "@/lib/supabase/image-cleanup";
 
 type DeleteItemResult = {
   deleted: boolean;
   message: string;
+  warning?: string;
 };
-
-const publicImagePrefix = "/storage/v1/object/public/item-images/";
 
 export async function deleteItem(itemId: string): Promise<DeleteItemResult> {
   if (
@@ -55,34 +55,12 @@ export async function deleteItem(itemId: string): Promise<DeleteItemResult> {
     };
   }
 
-  let warning = "";
-  if (item.image_url) {
-    try {
-      const imageUrl = new URL(item.image_url);
-      if (imageUrl.pathname.startsWith(publicImagePrefix)) {
-        const imagePath = decodeURIComponent(
-          imageUrl.pathname.slice(publicImagePrefix.length),
-        );
-        if (imagePath.startsWith(`${user.id}/`)) {
-          const { error: storageError } = await supabase.storage
-            .from("item-images")
-            .remove([imagePath]);
-          if (storageError) {
-            warning = ` 画像ファイルの削除に失敗しました: ${storageError.message}`;
-          }
-        }
-      }
-    } catch (error) {
-      warning =
-        error instanceof Error
-          ? ` 画像URLを確認できませんでした: ${error.message}`
-          : " 画像URLを確認できませんでした。";
-    }
-  }
+  const { warning } = await removeImageIfUnused(item.image_url, user.id);
 
   revalidatePath("/dashboard");
   return {
     deleted: true,
-    message: `削除しました。${warning}`,
+    message: "削除しました。",
+    ...(warning ? { warning } : {}),
   };
 }
