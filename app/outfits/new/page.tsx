@@ -19,6 +19,22 @@ export default async function NewOutfitPage() {
     .from("items")
     .select("id, name, category, image_url")
     .order("created_at", { ascending: false });
+  const { data: templateData, error: templatesError } = await supabase
+    .from("outfit_templates")
+    .select(
+      "id, name, memo, image_url, outfit_template_items(item:items(id, name, category, image_url))",
+    )
+    .order("created_at", { ascending: false });
+  const templates =
+    templateData?.map((template) => ({
+      id: template.id,
+      name: template.name,
+      memo: template.memo,
+      imageUrl: template.image_url,
+      items: template.outfit_template_items.flatMap(({ item }) =>
+        Array.isArray(item) ? item : item ? [item] : [],
+      ),
+    })) ?? [];
 
   return (
     <main className="min-h-screen">
@@ -60,7 +76,19 @@ export default async function NewOutfitPage() {
             アイテムを読み込めませんでした: {error.message}
           </p>
         ) : (
-          <OutfitForm items={items ?? []} />
+          <>
+            {templatesError && (
+              <p
+                role="alert"
+                className="mt-8 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800"
+              >
+                テンプレートを読み込めませんでした: {templatesError.message}
+                。機能を有効にするには、Supabase SQL Editorで
+                `supabase/outfits.sql`を再実行してください。
+              </p>
+            )}
+            <OutfitForm items={items ?? []} templates={templates} />
+          </>
         )}
       </section>
     </main>

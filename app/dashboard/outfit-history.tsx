@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 type OutfitItem = {
   id: string;
@@ -78,6 +78,8 @@ export function OutfitHistory() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [savingTemplateId, setSavingTemplateId] = useState<string | null>(null);
+  const [templateFeedback, setTemplateFeedback] = useState("");
 
   const periodStart =
     view === "week" ? getWeekStart(anchorDate) : getCalendarStart(anchorDate);
@@ -167,6 +169,44 @@ export function OutfitHistory() {
 
   function openDay(date: Date) {
     setSelectedDate(toDateKey(date));
+  }
+
+  async function saveAsTemplate(
+    event: FormEvent<HTMLFormElement>,
+    outfitId: string,
+  ) {
+    event.preventDefault();
+    setTemplateFeedback("");
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const name = formData.get("templateName");
+    if (typeof name !== "string" || !name.trim()) {
+      setTemplateFeedback("テンプレート名を入力してください。");
+      return;
+    }
+
+    setSavingTemplateId(outfitId);
+    try {
+      const response = await fetch("/api/outfit-templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ outfitId, name }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(result.error ?? "テンプレートを保存できませんでした。");
+      }
+      setTemplateFeedback(`「${name.trim()}」をテンプレートに保存しました。`);
+      form.reset();
+    } catch (error) {
+      setTemplateFeedback(
+        error instanceof Error
+          ? error.message
+          : "テンプレートを保存できませんでした。",
+      );
+    } finally {
+      setSavingTemplateId(null);
+    }
   }
 
   const selectedOutfits = selectedDate
@@ -454,6 +494,39 @@ export function OutfitHistory() {
                         </p>
                       )}
                     </div>
+                    <form
+                      onSubmit={(event) => saveAsTemplate(event, outfit.id)}
+                      className="rounded-xl border border-[#e7ebe7] bg-[#f7f8f6] p-4"
+                    >
+                      <label className="block text-sm font-medium">
+                        テンプレート名
+                        <input
+                          name="templateName"
+                          type="text"
+                          required
+                          maxLength={80}
+                          defaultValue={`${formatLongDate(selectedDate)}のコーデ`}
+                          className="mt-2 w-full rounded-xl border border-[#dce3dd] bg-white px-4 py-3 text-ink outline-none transition focus:border-forest focus:ring-4 focus:ring-sage"
+                        />
+                      </label>
+                      <button
+                        type="submit"
+                        disabled={savingTemplateId === outfit.id}
+                        className="mt-3 rounded-xl border border-[#dce3dd] bg-white px-4 py-2 text-sm font-semibold text-forest transition hover:bg-sage disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {savingTemplateId === outfit.id
+                          ? "保存中..."
+                          : "テンプレートとして保存"}
+                      </button>
+                      {templateFeedback && (
+                        <p
+                          role="status"
+                          className="mt-2 text-sm text-forest"
+                        >
+                          {templateFeedback}
+                        </p>
+                      )}
+                    </form>
                   </article>
                 ))}
               </div>

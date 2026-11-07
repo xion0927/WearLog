@@ -67,6 +67,92 @@ create index if not exists outfit_items_item_id_idx
 
 alter table public.outfit_items enable row level security;
 
+create table if not exists public.outfit_templates (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  name text not null check (char_length(name) between 1 and 80),
+  memo text check (memo is null or char_length(memo) <= 2000),
+  image_url text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists outfit_templates_user_created_idx
+  on public.outfit_templates (user_id, created_at desc);
+
+alter table public.outfit_templates enable row level security;
+
+drop policy if exists "Users can read their own outfit templates" on public.outfit_templates;
+create policy "Users can read their own outfit templates"
+  on public.outfit_templates for select
+  to authenticated
+  using ((select auth.uid()) = user_id);
+
+drop policy if exists "Users can add their own outfit templates" on public.outfit_templates;
+create policy "Users can add their own outfit templates"
+  on public.outfit_templates for insert
+  to authenticated
+  with check ((select auth.uid()) = user_id);
+
+drop policy if exists "Users can delete their own outfit templates" on public.outfit_templates;
+create policy "Users can delete their own outfit templates"
+  on public.outfit_templates for delete
+  to authenticated
+  using ((select auth.uid()) = user_id);
+
+create table if not exists public.outfit_template_items (
+  id uuid primary key default gen_random_uuid(),
+  template_id uuid not null references public.outfit_templates (id) on delete cascade,
+  item_id uuid not null references public.items (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (template_id, item_id)
+);
+
+create index if not exists outfit_template_items_item_id_idx
+  on public.outfit_template_items (item_id);
+
+alter table public.outfit_template_items enable row level security;
+
+drop policy if exists "Users can read their own outfit template items" on public.outfit_template_items;
+create policy "Users can read their own outfit template items"
+  on public.outfit_template_items for select
+  to authenticated
+  using (
+    exists (
+      select 1
+      from public.outfit_templates
+      where outfit_templates.id = outfit_template_items.template_id
+        and outfit_templates.user_id = (select auth.uid())
+    )
+  );
+
+drop policy if exists "Users can add items to their own outfit templates" on public.outfit_template_items;
+create policy "Users can add items to their own outfit templates"
+  on public.outfit_template_items for insert
+  to authenticated
+  with check (
+    exists (
+      select 1
+      from public.outfit_templates
+      join public.items on items.id = outfit_template_items.item_id
+      where outfit_templates.id = outfit_template_items.template_id
+        and outfit_templates.user_id = (select auth.uid())
+        and items.user_id = (select auth.uid())
+    )
+  );
+
+drop policy if exists "Users can remove items from their own outfit templates" on public.outfit_template_items;
+create policy "Users can remove items from their own outfit templates"
+  on public.outfit_template_items for delete
+  to authenticated
+  using (
+    exists (
+      select 1
+      from public.outfit_templates
+      where outfit_templates.id = outfit_template_items.template_id
+        and outfit_templates.user_id = (select auth.uid())
+    )
+  );
+
 drop policy if exists "Users can read their own outfit items" on public.outfit_items;
 create policy "Users can read their own outfit items"
   on public.outfit_items for select
@@ -149,6 +235,49 @@ $$;
 
 revoke all on function public.save_outfit(date, text, text, uuid[]) from public, anon;
 grant execute on function public.save_outfit(date, text, text, uuid[]) to authenticated;
+
+create or replace function public.save_outfit_template(
+  p_outfit_id uuid,
+  p_name text
+)
+returns uuid
+language plpgsql
+set search_path = public
+as $$
+declare
+  current_user_id uuid := auth.uid();
+  saved_template_id uuid;
+begin
+  if current_user_id is null then
+    raise exception 'ログインが必要です。';
+  end if;
+
+  if p_name is null or char_length(trim(p_name)) not between 1 and 80 then
+    raise exception 'テンプレート名は1〜80文字で入力してください。';
+  end if;
+
+  insert into public.outfit_templates (user_id, name, memo, image_url)
+  select current_user_id, trim(p_name), outfits.memo, outfits.image_url
+  from public.outfits
+  where outfits.id = p_outfit_id
+    and outfits.user_id = current_user_id
+  returning id into saved_template_id;
+
+  if saved_template_id is null then
+    raise exception 'コーデ記録が見つかりません。';
+  end if;
+
+  insert into public.outfit_template_items (template_id, item_id)
+  select saved_template_id, outfit_items.item_id
+  from public.outfit_items
+  where outfit_items.outfit_id = p_outfit_id;
+
+  return saved_template_id;
+end;
+$$;
+
+revoke all on function public.save_outfit_template(uuid, text) from public, anon;
+grant execute on function public.save_outfit_template(uuid, text) to authenticated;
 
 insert into storage.buckets (
   id,
