@@ -27,12 +27,17 @@ Next.js App Router と Supabase Auth（`@supabase/ssr`）を使った、コー�
    ```
 
 6. Supabase Dashboard の **SQL Editor** で [`supabase/items.sql`](./supabase/items.sql) の内容を実行します。`items` テーブル、ユーザーごとのRLSポリシー、`item-images` Storageバケットとアップロードポリシーが作成されます。テーブルを既に作成済みの場合も、このSQLを再実行して `image_url` を任意項目に更新してください。
-7. Supabase Dashboard の **Authentication → Email Templates → Confirm signup** は標準の確認リンク (`{{ .ConfirmationURL }}`) を使用します。メールテンプレートの変更は不要です。
-8. `http://localhost:3000/signup` から登録し、届いたメールの確認リンクを開きます。リンクを開くと `/auth/callback` で認証し、成功すると `/dashboard` に移動します。
+7. 続けて [`supabase/outfits.sql`](./supabase/outfits.sql) を実行し、コーデ記録用テーブルとStorageバケットを作成します。
+8. Supabase Dashboard の **Authentication → Email Templates → Confirm signup** は標準の確認リンク (`{{ .ConfirmationURL }}`) を使用します。メールテンプレートの変更は不要です。
+9. `http://localhost:3000/signup` から登録し、届いたメールの確認リンクを開きます。リンクを開くと `/auth/callback` で認証し、成功すると `/dashboard` に移動します。
 
 ## 服アイテム登録について
 
 服の名前とカテゴリだけで登録できます。画像を追加する場合は `item-images` の公開バケットへアップロードし、公開URLを `items.image_url` に保存します。そのため画像URLを知っている人はログインしていなくても画像を閲覧できます。アップロードはログインユーザーに限定され、オブジェクトはユーザーIDごとのフォルダーに保存されます。画像形式はJPEG、PNG、WebP、GIF、サイズは5MBまでです。
+
+## コーデ記録
+
+ログイン後、ダッシュボードの **今日のコーデを記録する** から `/outfits/new` を開きます。日付（初期値は今日）、メモ、任意の全体画像を入力し、カテゴリで絞り込んだ登録済みアイテムをタップして選択して保存します。カテゴリを切り替えても選択状態は維持されます。コーデ画像は `outfit-images` の公開バケットに保存されるため、画像URLを知っている人は閲覧できます。画像形式はJPEG、PNG、WebP、GIF、サイズは5MBまでです。
 
 ## Vercel へのデプロイ
 
@@ -42,6 +47,7 @@ Vercel の **Project Settings → Environment Variables** に `NEXT_PUBLIC_SUPAB
 
 - `/login` と `/signup` の認証フォーム
 - `/dashboard` での服アイテム登録・一覧表示
+- `/outfits/new` での日付・メモ・全体画像・着用アイテムを含むコーデ保存
 - カテゴリごとの絞り込みとカテゴリ順の一覧表示
 - 登録した服アイテムの削除
 - 登録アイテムの詳細メニューから名前・カテゴリ・画像の編集と削除

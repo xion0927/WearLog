@@ -1,11 +1,19 @@
 import { signOut } from "@/app/auth/actions";
+import Link from "next/link";
 import { ItemForm } from "@/app/dashboard/item-form";
 import { ItemGrid } from "@/app/dashboard/item-grid";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
+type DashboardPageProps = {
+  searchParams: Promise<{ outfitSaved?: string }>;
+};
+
+export default async function DashboardPage({
+  searchParams,
+}: DashboardPageProps) {
+  const { outfitSaved } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -46,6 +54,24 @@ export default async function DashboardPage() {
           マイクローゼット
         </h1>
         <p className="mt-3 text-muted">{user.email} でログイン中</p>
+
+        {outfitSaved && (
+          <p
+            role="status"
+            className="mt-5 rounded-xl bg-sage px-4 py-3 text-sm text-forest"
+          >
+            {outfitSaved}
+          </p>
+        )}
+
+        <div className="mt-8">
+          <Link
+            href="/outfits/new"
+            className="inline-flex items-center justify-center rounded-xl bg-forest px-5 py-3 font-semibold text-white transition hover:bg-[#264b39] focus:outline-none focus:ring-4 focus:ring-sage"
+          >
+            今日のコーデを記録する
+          </Link>
+        </div>
 
         <ItemForm />
 
