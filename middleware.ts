@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { authCookieOptions } from "@/lib/supabase/cookie-options";
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -24,12 +25,19 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
+  const pendingCookies: Array<{
+    name: string;
+    value: string;
+    options?: Parameters<NextResponse["cookies"]["set"]>[2];
+  }> = [];
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
+    cookieOptions: authCookieOptions,
     cookies: {
       getAll() {
         return request.cookies.getAll();
       },
       setAll(cookiesToSet) {
+        pendingCookies.push(...cookiesToSet);
         cookiesToSet.forEach(({ name, value }) =>
           request.cookies.set(name, value),
         );
@@ -49,9 +57,9 @@ export async function middleware(request: NextRequest) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("message", "ログインして続行してください。");
     const redirectResponse = NextResponse.redirect(loginUrl);
-    response.cookies.getAll().forEach((cookie) =>
-      redirectResponse.cookies.set(cookie),
-    );
+    pendingCookies.forEach(({ name, value, options }) => {
+      redirectResponse.cookies.set(name, value, options);
+    });
     return redirectResponse;
   }
 

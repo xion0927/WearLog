@@ -1,6 +1,6 @@
 # WearLog
 
-Next.js App Router と Supabase Auth（`@supabase/ssr`）を使った、コーデ記録アプリです。ログイン後のダッシュボードで、服アイテムを登録・一覧表示できます。
+Next.js App Router と Supabase Auth（`@supabase/ssr`）を使った、コーデ記録アプリです。ログイン後はコーデ記録が最初に表示され、上部ナビゲーションからコーデの記録とクローゼットを切り替えられます。クローゼットではテンプレート・登録した服の一覧表示と、服の新規登録ができます。
 
 ## セットアップ
 
@@ -28,8 +28,11 @@ Next.js App Router と Supabase Auth（`@supabase/ssr`）を使った、コー�
 
 6. Supabase Dashboard の **SQL Editor** で [`supabase/items.sql`](./supabase/items.sql) の内容を実行します。`items` テーブル、ユーザーごとのRLSポリシー、`item-images` Storageバケットとポリシーが作成されます。テーブルを既に作成済みの場合も、このSQLを再実行して `image_url` を任意項目に更新してください。
 7. 続けて [`supabase/outfits.sql`](./supabase/outfits.sql) を実行し、コーデ記録用テーブルとStorageバケットを作成します。既に実行済みでも、更新後のSQLをもう一度実行してください（同じ日の既存記録は最新1件に整理されます）。未使用画像の自動整理にはStorageオブジェクト一覧ポリシーも必要なため、`items.sql` と `outfits.sql` の両方を最新版にして実行してください。
+   アカウント削除機能を使う場合も、認証ユーザーを削除する `delete_current_user()` 関数を追加するため、最新版の `outfits.sql` の実行が必要です。
 8. Supabase Dashboard の **Authentication → Email Templates → Confirm signup** は標準の確認リンク (`{{ .ConfirmationURL }}`) を使用します。メールテンプレートの変更は不要です。
 9. `http://localhost:3000/signup` から登録し、届いたメールの確認リンクを開きます。リンクを開くと `/auth/callback` で認証し、成功すると `/dashboard` に移動します。
+
+ログイン状態はブラウザーのCookieに最大400日間保存され、サイトを閉じて再度開いても維持されます（Supabase側でセッションが無効化・期限切れになった場合を除く）。ローカル開発ではCookieがホスト名ごとに分かれるため、`http://localhost:3000` と `http://127.0.0.1:3000` を切り替えず、同じURLを使ってください。
 
 ## 服アイテム登録について
 
@@ -48,7 +51,9 @@ Vercel の **Project Settings → Environment Variables** に `NEXT_PUBLIC_SUPAB
 ## 実装内容
 
 - `/login` と `/signup` の認証フォーム
-- `/dashboard` での服アイテム登録・一覧表示
+- `/dashboard` での1週間・1ヶ月のコーデ記録表示
+- `/closet` でのテンプレート・服アイテム一覧表示と服アイテム登録
+- ユーザーメニューでのメールアドレス表示、ログアウト、アカウントと関連データの削除
 - `/outfits/new` での日付・メモ・全体画像・着用アイテムを含むコーデ保存
 - 保存したコーデからテンプレートを作成し、コーデ記録時に呼び出す機能
 - カテゴリごとの絞り込みとカテゴリ順の一覧表示

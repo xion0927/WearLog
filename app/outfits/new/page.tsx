@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import { SiteHeader } from "@/app/site-header";
 import { createClient } from "@/lib/supabase/server";
 import { OutfitForm } from "./outfit-form";
 
@@ -38,24 +38,7 @@ export default async function NewOutfitPage() {
 
   return (
     <main className="min-h-screen">
-      <header className="border-b border-[#e7ebe7] bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-5">
-          <Link href="/dashboard" className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sage font-semibold text-forest">
-              W
-            </span>
-            <span className="font-semibold tracking-wide text-forest">
-              WEARLOG
-            </span>
-          </Link>
-          <Link
-            href="/dashboard"
-            className="rounded-lg px-4 py-2 text-sm font-medium text-muted transition hover:bg-sage hover:text-forest"
-          >
-            クローゼットに戻る
-          </Link>
-        </div>
-      </header>
+      <SiteHeader currentPage="record" userEmail={user.email ?? ""} />
 
       <section className="mx-auto max-w-3xl px-5 py-12 sm:py-16">
         <p className="text-sm font-semibold tracking-wide text-forest">

@@ -10,6 +10,10 @@ type CleanupAllResult = {
   warning?: string;
 };
 
+type AccountImageCleanupResult = {
+  warning?: string;
+};
+
 const imageBuckets = ["item-images", "outfit-images"] as const;
 const pageSize = 100;
 
@@ -170,6 +174,72 @@ export async function removeUnusedImagesForUser(
   }
 
   return { removedCount };
+}
+
+export async function removeAllImagesForAccount(
+  expectedUserId: string,
+): Promise<AccountImageCleanupResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+  if (authError || !user || user.id !== expectedUserId) {
+    return {
+      warning: authError
+        ? `アカウント画像の削除時にログイン状態を確認できませんでした: ${authError.message}`
+        : "アカウント画像の削除にはログインが必要です。",
+    };
+  }
+
+  for (const bucket of imageBuckets) {
+    while (true) {
+      const { data: files, error } = await supabase.storage
+        .from(bucket)
+        .list(user.id, {
+          limit: pageSize,
+          offset: 0,
+          sortBy: { column: "name", order: "asc" },
+        });
+      if (error) {
+        return {
+          warning: `アカウント画像の一覧を取得できませんでした (${bucket}): ${error.message}`,
+        };
+      }
+      if (files.length === 0) {
+        break;
+      }
+
+      const paths = files
+        .filter(
+          (file) =>
+            file.id &&
+            !file.name.includes("/") &&
+            file.name !== "." &&
+            file.name !== "..",
+        )
+        .map((file) => `${user.id}/${file.name}`);
+      if (paths.length === 0) {
+        return {
+          warning: `アカウント画像のフォルダー構成を確認できませんでした (${bucket})。画像は削除されていません。`,
+        };
+      }
+      if (paths.length > 0) {
+        const { error: removeError } = await supabase.storage
+          .from(bucket)
+          .remove(paths);
+        if (removeError) {
+          return {
+            warning: `アカウント画像を削除できませんでした (${bucket}): ${removeError.message}`,
+          };
+        }
+      }
+
+      if (files.length < pageSize) break;
+    }
+  }
+
+  return {};
 }
 
 export async function removeImageIfUnused(
