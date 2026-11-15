@@ -406,47 +406,6 @@ export function OutfitForm({
         </label>
       )}
 
-      <label className="block text-sm font-medium">
-        日付
-        <input
-          name="date"
-          type="date"
-          value={date}
-          onChange={(event) => setDate(event.target.value)}
-          className={fieldClassName}
-        />
-        <span className="mt-1 block text-xs font-normal text-muted">
-          未入力の場合は今日の日付で登録します。
-        </span>
-      </label>
-
-      <label className="block text-sm font-medium">
-        メモ
-        <textarea
-          name="memo"
-          value={memo}
-          onChange={(event) => setMemo(event.target.value)}
-          maxLength={2000}
-          rows={4}
-          className={fieldClassName}
-          placeholder="天気や気分、コーデのポイントなど"
-        />
-      </label>
-
-      {saveMode === "new" && (
-        <fieldset className="rounded-xl border border-[#e7ebe7] bg-[#f7f8f6] p-4">
-          <label className="flex items-start gap-3 text-sm font-medium">
-            <input
-              type="checkbox"
-              checked={saveAsTemplate}
-              onChange={(event) => setSaveAsTemplate(event.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-[#315b48] focus:ring-4 focus:ring-sage"
-            />
-            <span>テンプレートとして登録する</span>
-          </label>
-        </fieldset>
-      )}
-
       {saveMode === "new" && (
         <label className="block text-sm font-medium">
           コーデ全体の画像
@@ -581,6 +540,47 @@ export function OutfitForm({
             </div>
           )}
         </section>
+      )}
+
+      <label className="block text-sm font-medium">
+        日付
+        <input
+          name="date"
+          type="date"
+          value={date}
+          onChange={(event) => setDate(event.target.value)}
+          className={fieldClassName}
+        />
+        <span className="mt-1 block text-xs font-normal text-muted">
+          未入力の場合は今日の日付で登録します。
+        </span>
+      </label>
+
+      <label className="block text-sm font-medium">
+        メモ
+        <textarea
+          name="memo"
+          value={memo}
+          onChange={(event) => setMemo(event.target.value)}
+          maxLength={2000}
+          rows={4}
+          className={fieldClassName}
+          placeholder="天気や気分、コーデのポイントなど"
+        />
+      </label>
+
+      {saveMode === "new" && (
+        <fieldset className="rounded-xl border border-[#e7ebe7] bg-[#f7f8f6] p-4">
+          <label className="flex items-start gap-3 text-sm font-medium">
+            <input
+              type="checkbox"
+              checked={saveAsTemplate}
+              onChange={(event) => setSaveAsTemplate(event.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-[#315b48] focus:ring-4 focus:ring-sage"
+            />
+            <span>テンプレートとして登録する</span>
+          </label>
+        </fieldset>
       )}
 
       <div className="flex flex-col-reverse gap-3 border-t border-[#e7ebe7] pt-6 sm:flex-row sm:justify-end">
