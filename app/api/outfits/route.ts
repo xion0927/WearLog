@@ -1,5 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { removeImageIfUnused } from "@/lib/supabase/image-cleanup";
+
+const uuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isValidDate(value: string | null): value is string {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -69,4 +73,69 @@ export async function GET(request: NextRequest) {
   }));
 
   return NextResponse.json({ outfits });
+}
+
+export async function DELETE(request: NextRequest) {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { error: "送信内容を読み取れませんでした。" },
+      { status: 400 },
+    );
+  }
+
+  if (
+    typeof body !== "object" ||
+    body === null ||
+    !("outfitId" in body) ||
+    typeof body.outfitId !== "string" ||
+    !uuidPattern.test(body.outfitId)
+  ) {
+    return NextResponse.json(
+      { error: "削除するコーデの指定が正しくありません。" },
+      { status: 400 },
+    );
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return NextResponse.json(
+      { error: "コーデの削除にはログインが必要です。" },
+      { status: 401 },
+    );
+  }
+
+  const { data: outfit, error } = await supabase
+    .from("outfits")
+    .delete()
+    .eq("id", body.outfitId)
+    .eq("user_id", user.id)
+    .select("id, image_url")
+    .maybeSingle();
+
+  if (error) {
+    return NextResponse.json(
+      { error: `コーデを削除できませんでした: ${error.message}` },
+      { status: 500 },
+    );
+  }
+  if (!outfit) {
+    return NextResponse.json(
+      { error: "コーデが見つからないか、削除する権限がありません。" },
+      { status: 404 },
+    );
+  }
+
+  const cleanupResult = await removeImageIfUnused(outfit.image_url, user.id);
+  return NextResponse.json({
+    deleted: true,
+    cleanupWarning: cleanupResult.warning,
+  });
 }

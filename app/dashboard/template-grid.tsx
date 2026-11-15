@@ -58,20 +58,37 @@ export function TemplateGrid({
   wardrobeItems,
 }: TemplateGridProps) {
   const [templates, setTemplates] = useState(initialTemplates);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
+    null,
+  );
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [removeImage, setRemoveImage] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [feedbackMessage, setFeedbackMessage] = useState("");
 
   const activeTemplate = templates.find(
     (template) => template.id === activeTemplateId,
   );
+  const selectedTemplate = templates.find(
+    (template) => template.id === selectedTemplateId,
+  );
   const visibleWardrobeItems =
     selectedCategory === "all"
       ? wardrobeItems
       : wardrobeItems.filter((item) => item.category === selectedCategory);
+
+  function openEditor(template: OutfitTemplate) {
+    setErrorMessage("");
+    setFeedbackMessage("");
+    setSelectedCategory("all");
+    setSelectedItemIds(template.items.map((item) => item.id));
+    setRemoveImage(false);
+    setSelectedTemplateId(null);
+    setActiveTemplateId(template.id);
+  }
 
   async function handleUpdate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -107,7 +124,7 @@ export function TemplateGrid({
     }
 
     setIsSubmitting(true);
-    let imageUrl = activeTemplate.image_url;
+    let imageUrl = removeImage ? null : activeTemplate.image_url;
     let uploadedImagePath: string | null = null;
     const supabase = createClient();
 
@@ -175,6 +192,7 @@ export function TemplateGrid({
         ),
       );
       setSelectedItemIds(selectedItemIds);
+      setRemoveImage(false);
       setActiveTemplateId(null);
       setFeedbackMessage(
         result.cleanupWarning
@@ -264,40 +282,40 @@ export function TemplateGrid({
               key={template.id}
               className="relative overflow-hidden rounded-2xl border border-[#e7ebe7] bg-white shadow-sm"
             >
-              {template.image_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={template.image_url}
-                  alt={template.name}
-                  loading="lazy"
-                  className="aspect-[4/5] w-full bg-sage object-cover"
-                />
-              ) : (
-                <div className="flex aspect-[4/5] items-center justify-center bg-sage text-sm text-forest">
-                  画像なし
-                </div>
-              )}
-              <div className="p-4">
-                <p className="truncate font-semibold" title={template.name}>
-                  {template.name}
-                </p>
-                <p className="mt-1 text-sm text-muted">
-                  {template.items.length} 点のアイテム
-                </p>
-              </div>
               <button
                 type="button"
-                aria-label={`${template.name}の詳細を開く`}
-                title="詳細・編集"
-                onClick={() => {
-                  setErrorMessage("");
-                  setFeedbackMessage("");
-                  setSelectedCategory("all");
-                  setSelectedItemIds(
-                    template.items.map((item) => item.id),
-                  );
-                  setActiveTemplateId(template.id);
-                }}
+                aria-label={`${template.name}の詳細を表示`}
+                onClick={() => setSelectedTemplateId(template.id)}
+                className="block w-full text-left focus:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-forest"
+              >
+                {template.image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={template.image_url}
+                    alt={template.name}
+                    loading="lazy"
+                    className="aspect-[4/5] w-full bg-sage object-cover"
+                  />
+                ) : (
+                  <div className="flex aspect-[4/5] items-center justify-center bg-sage text-sm text-forest">
+                    画像なし
+                  </div>
+                )}
+                <div className="p-4">
+                  <p className="truncate font-semibold" title={template.name}>
+                    {template.name}
+                  </p>
+                  <p className="mt-1 text-sm text-muted">
+                    {template.items.length} 点のアイテム
+                  </p>
+                  <p className="mt-2 text-xs text-forest">タップして詳細</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                aria-label={`${template.name}を編集`}
+                title="編集・削除"
+                onClick={() => openEditor(template)}
                 className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-xl text-ink shadow-md transition hover:bg-sage focus:outline-none focus:ring-4 focus:ring-sage"
               >
                 ⋮
@@ -311,6 +329,109 @@ export function TemplateGrid({
           <p className="mt-2 text-sm text-muted">
             コーデを記録するときにテンプレートとして登録できます。
           </p>
+        </div>
+      )}
+
+      {selectedTemplate && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-ink/50 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setSelectedTemplateId(null);
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="template-detail-title"
+            className="my-auto max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl sm:p-8"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold tracking-wide text-forest">
+                  OUTFIT TEMPLATE
+                </p>
+                <h2
+                  id="template-detail-title"
+                  className="mt-2 text-2xl font-semibold"
+                >
+                  {selectedTemplate.name}
+                </h2>
+              </div>
+              <button
+                type="button"
+                aria-label="閉じる"
+                onClick={() => setSelectedTemplateId(null)}
+                className="rounded-full px-3 py-1 text-2xl leading-none text-muted hover:bg-sage"
+              >
+                ×
+              </button>
+            </div>
+            {selectedTemplate.image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={selectedTemplate.image_url}
+                alt={selectedTemplate.name}
+                className="mt-5 max-h-[50vh] w-full rounded-2xl bg-sage object-contain"
+              />
+            ) : (
+              <div className="mt-5 flex min-h-40 items-center justify-center rounded-2xl bg-sage text-sm text-forest">
+                コーデ画像はありません
+              </div>
+            )}
+            {selectedTemplate.memo && (
+              <p className="mt-4 whitespace-pre-wrap rounded-xl bg-[#f7f8f6] p-4 text-sm leading-6 text-ink">
+                {selectedTemplate.memo}
+              </p>
+            )}
+            <section className="mt-5">
+              <h3 className="text-sm font-semibold">
+                着用アイテム ({selectedTemplate.items.length})
+              </h3>
+              {selectedTemplate.items.length > 0 ? (
+                <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {selectedTemplate.items.map((item) => (
+                    <li
+                      key={item.id}
+                      className="overflow-hidden rounded-xl border border-[#e7ebe7] bg-white"
+                    >
+                      {item.image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={item.image_url}
+                          alt=""
+                          loading="lazy"
+                          className="aspect-[4/3] w-full bg-sage object-cover"
+                        />
+                      ) : (
+                        <span className="flex aspect-[4/3] items-center justify-center bg-sage text-xs text-forest">
+                          画像なし
+                        </span>
+                      )}
+                      <span className="block truncate px-3 py-2 text-sm font-medium">
+                        {item.name}
+                      </span>
+                      <span className="block px-3 pb-2 text-xs text-muted">
+                        {categories[item.category] ?? item.category}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-sm text-muted">
+                  着用アイテムは登録されていません。
+                </p>
+              )}
+            </section>
+            <button
+              type="button"
+              onClick={() => openEditor(selectedTemplate)}
+              className="mt-6 w-full rounded-xl border border-[#dce3dd] px-4 py-3 font-semibold text-forest transition hover:bg-sage focus:outline-none focus:ring-4 focus:ring-sage"
+            >
+              テンプレートを編集
+            </button>
+          </section>
         </div>
       )}
 
@@ -394,6 +515,15 @@ export function TemplateGrid({
                     alt={activeTemplate.name}
                     className="mt-2 max-h-64 w-full rounded-xl bg-sage object-contain"
                   />
+                  <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm font-medium text-red-700">
+                    <input
+                      type="checkbox"
+                      checked={removeImage}
+                      onChange={(event) => setRemoveImage(event.target.checked)}
+                      className="h-4 w-4 accent-red-700"
+                    />
+                    現在の画像を削除
+                  </label>
                 </div>
               )}
 
@@ -403,6 +533,11 @@ export function TemplateGrid({
                   name="image"
                   type="file"
                   accept="image/jpeg,image/png,image/webp,image/gif"
+                  onChange={(event) => {
+                    if (event.target.files?.length) {
+                      setRemoveImage(false);
+                    }
+                  }}
                   className="mt-2 block w-full rounded-xl border border-[#dce3dd] bg-white px-3 py-2.5 text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-sage file:px-3 file:py-2 file:font-medium file:text-forest"
                 />
               </label>

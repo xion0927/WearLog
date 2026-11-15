@@ -32,6 +32,7 @@ type ItemGridProps = {
 
 export function ItemGrid({ items }: ItemGridProps) {
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedItem, setSelectedItem] = useState<Item | null>(null);
 
   const visibleItems = useMemo(() => {
     const filteredItems =
@@ -90,28 +91,36 @@ export function ItemGrid({ items }: ItemGridProps) {
               key={item.id}
               className="relative overflow-hidden rounded-2xl border border-[#e7ebe7] bg-white shadow-sm"
             >
-              {item.image_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={item.image_url}
-                  alt={item.name}
-                  loading="lazy"
-                  className="aspect-[4/5] w-full bg-sage object-cover"
-                />
-              ) : (
-                <div className="flex aspect-[4/5] items-center justify-center bg-sage text-sm text-forest">
-                  画像なし
+              <button
+                type="button"
+                aria-label={`${item.name}の詳細を表示`}
+                onClick={() => setSelectedItem(item)}
+                className="block w-full text-left focus:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-forest"
+              >
+                {item.image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={item.image_url}
+                    alt={item.name}
+                    loading="lazy"
+                    className="aspect-[4/5] w-full bg-sage object-cover"
+                  />
+                ) : (
+                  <div className="flex aspect-[4/5] items-center justify-center bg-sage text-sm text-forest">
+                    画像なし
+                  </div>
+                )}
+                <div className="p-4">
+                  <p className="truncate font-semibold" title={item.name}>
+                    {item.name}
+                  </p>
+                  <p className="mt-1 text-sm text-muted">
+                    {categories.find((category) => category.value === item.category)
+                      ?.label ?? item.category}
+                  </p>
+                  <p className="mt-2 text-xs text-forest">タップして詳細</p>
                 </div>
-              )}
-              <div className="p-4">
-                <p className="truncate font-semibold" title={item.name}>
-                  {item.name}
-                </p>
-                <p className="mt-1 text-sm text-muted">
-                  {categories.find((category) => category.value === item.category)
-                    ?.label ?? item.category}
-                </p>
-              </div>
+              </button>
               <ItemDetails item={item} />
             </article>
           ))}
@@ -128,6 +137,63 @@ export function ItemGrid({ items }: ItemGridProps) {
               ? "上のフォームから最初のアイテムを追加しましょう。"
               : "別のカテゴリを選ぶか、新しいアイテムを登録してください。"}
           </p>
+        </div>
+      )}
+
+      {selectedItem && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-ink/50 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setSelectedItem(null);
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="wardrobe-item-detail-title"
+            className="my-auto max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl sm:p-8"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold tracking-wide text-forest">
+                  ITEM DETAILS
+                </p>
+                <h2
+                  id="wardrobe-item-detail-title"
+                  className="mt-2 text-2xl font-semibold"
+                >
+                  {selectedItem.name}
+                </h2>
+              </div>
+              <button
+                type="button"
+                aria-label="閉じる"
+                onClick={() => setSelectedItem(null)}
+                className="rounded-full px-3 py-1 text-2xl leading-none text-muted hover:bg-sage"
+              >
+                ×
+              </button>
+            </div>
+            {selectedItem.image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={selectedItem.image_url}
+                alt={selectedItem.name}
+                className="mt-5 max-h-[55vh] w-full rounded-2xl bg-sage object-contain"
+              />
+            ) : (
+              <div className="mt-5 flex min-h-48 items-center justify-center rounded-2xl bg-sage text-sm text-forest">
+                画像なし
+              </div>
+            )}
+            <p className="mt-4 rounded-xl bg-[#f7f8f6] px-4 py-3 text-sm text-muted">
+              カテゴリ:{" "}
+              {categories.find((category) => category.value === selectedItem.category)
+                ?.label ?? selectedItem.category}
+            </p>
+          </section>
         </div>
       )}
     </>

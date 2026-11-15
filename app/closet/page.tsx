@@ -59,14 +59,6 @@ export default async function ClosetPage() {
         <ItemForm />
 
         <section className="mt-14">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <h2 className="text-xl font-semibold">コーデテンプレート</h2>
-              <p className="mt-1 text-sm text-muted">
-                保存したコーデをいつでも呼び出せます。
-              </p>
-            </div>
-          </div>
           {templatesError ? (
             <p
               role="alert"

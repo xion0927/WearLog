@@ -79,7 +79,9 @@ export function OutfitHistory() {
   const [errorMessage, setErrorMessage] = useState("");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [savingTemplateId, setSavingTemplateId] = useState<string | null>(null);
+  const [deletingOutfitId, setDeletingOutfitId] = useState<string | null>(null);
   const [templateFeedback, setTemplateFeedback] = useState("");
+  const [deleteFeedback, setDeleteFeedback] = useState("");
 
   const periodStart =
     view === "week" ? getWeekStart(anchorDate) : getCalendarStart(anchorDate);
@@ -206,6 +208,50 @@ export function OutfitHistory() {
       );
     } finally {
       setSavingTemplateId(null);
+    }
+  }
+
+  async function deleteOutfit(outfit: Outfit) {
+    if (
+      !window.confirm(
+        `${formatLongDate(outfit.date)}のコーデ記録を削除します。この操作は取り消せません。よろしいですか？`,
+      )
+    ) {
+      return;
+    }
+
+    setDeleteFeedback("");
+    setDeletingOutfitId(outfit.id);
+    try {
+      const response = await fetch("/api/outfits", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ outfitId: outfit.id }),
+      });
+      const result = (await response.json()) as {
+        error?: string;
+        cleanupWarning?: string;
+      };
+      if (!response.ok) {
+        throw new Error(result.error ?? "コーデを削除できませんでした。");
+      }
+
+      setOutfits((current) =>
+        current.filter((entry) => entry.id !== outfit.id),
+      );
+      setDeleteFeedback(
+        result.cleanupWarning
+          ? `コーデを削除しました。${result.cleanupWarning}`
+          : "コーデを削除しました。",
+      );
+    } catch (error) {
+      setDeleteFeedback(
+        error instanceof Error
+          ? error.message
+          : "コーデを削除できませんでした。",
+      );
+    } finally {
+      setDeletingOutfitId(null);
     }
   }
 
@@ -424,7 +470,10 @@ export function OutfitHistory() {
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedDate(null)}
+                onClick={() => {
+                  setSelectedDate(null);
+                  setDeleteFeedback("");
+                }}
                 aria-label="閉じる"
                 className="rounded-lg px-3 py-1 text-2xl leading-none text-muted hover:bg-sage hover:text-forest"
               >
@@ -527,12 +576,34 @@ export function OutfitHistory() {
                         </p>
                       )}
                     </form>
+                    <button
+                      type="button"
+                      onClick={() => deleteOutfit(outfit)}
+                      disabled={deletingOutfitId === outfit.id}
+                      className="rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {deletingOutfitId === outfit.id
+                        ? "削除中..."
+                        : "このコーデを削除"}
+                    </button>
                   </article>
                 ))}
               </div>
             ) : (
               <p className="mt-6 rounded-xl bg-[#f7f8f6] px-4 py-8 text-center text-sm text-muted">
                 この日のコーデ記録はありません。
+              </p>
+            )}
+            {deleteFeedback && (
+              <p
+                role={deleteFeedback.startsWith("コーデを削除しました") ? "status" : "alert"}
+                className={`mt-4 rounded-xl px-4 py-3 text-sm ${
+                  deleteFeedback.startsWith("コーデを削除しました")
+                    ? "bg-sage text-forest"
+                    : "bg-red-50 text-red-700"
+                }`}
+              >
+                {deleteFeedback}
               </p>
             )}
           </section>

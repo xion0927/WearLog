@@ -40,6 +40,7 @@ export function ItemDetails({ item }: ItemDetailsProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [removeImage, setRemoveImage] = useState(false);
 
   async function handleUpdate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -91,7 +92,7 @@ export function ItemDetails({ item }: ItemDetailsProps) {
     }
 
     let newImagePath: string | null = null;
-    let newImageUrl = item.image_url;
+    let newImageUrl = removeImage ? null : item.image_url;
 
     if (image && extension) {
       newImagePath = `${user.id}/${crypto.randomUUID()}.${extension}`;
@@ -152,11 +153,12 @@ export function ItemDetails({ item }: ItemDetailsProps) {
     }
 
     let cleanupWarning = "";
-    if (newImagePath && item.image_url !== newImageUrl) {
+    if (item.image_url !== newImageUrl) {
       const cleanupResult = await cleanupUnusedImage(item.image_url);
       cleanupWarning = cleanupResult.warning ?? "";
     }
 
+    setRemoveImage(false);
     setSuccessMessage(
       cleanupWarning
         ? `アイテムを更新しました。${cleanupWarning}`
@@ -192,11 +194,12 @@ export function ItemDetails({ item }: ItemDetailsProps) {
     <>
       <button
         type="button"
-        aria-label={`${item.name}の詳細を開く`}
-        title="詳細・編集"
+        aria-label={`${item.name}を編集`}
+        title="編集・削除"
         onClick={() => {
           setErrorMessage("");
           setSuccessMessage("");
+          setRemoveImage(false);
           setIsOpen(true);
         }}
         className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-xl text-ink shadow-md transition hover:bg-sage focus:outline-none focus:ring-4 focus:ring-sage"
@@ -297,6 +300,15 @@ export function ItemDetails({ item }: ItemDetailsProps) {
                     alt={item.name}
                     className="mt-2 aspect-[4/3] w-full rounded-xl bg-sage object-contain"
                   />
+                  <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm font-medium text-red-700">
+                    <input
+                      type="checkbox"
+                      checked={removeImage}
+                      onChange={(event) => setRemoveImage(event.target.checked)}
+                      className="h-4 w-4 accent-red-700"
+                    />
+                    現在の画像を削除
+                  </label>
                 </div>
               )}
 
@@ -306,6 +318,11 @@ export function ItemDetails({ item }: ItemDetailsProps) {
                   name="image"
                   type="file"
                   accept="image/jpeg,image/png,image/webp,image/gif"
+                  onChange={(event) => {
+                    if (event.target.files?.length) {
+                      setRemoveImage(false);
+                    }
+                  }}
                   className="mt-2 block w-full rounded-xl border border-[#dce3dd] bg-white px-3 py-2.5 text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-sage file:px-3 file:py-2 file:font-medium file:text-forest"
                 />
               </label>
