@@ -17,6 +17,8 @@ type OutfitTemplate = {
   memo: string | null;
   image_url: string | null;
   created_at: string;
+  wear_months: number[];
+  manual_wear_months: number[];
   items: TemplateItem[];
 };
 
@@ -42,6 +44,8 @@ const categoryFilters = [
   { value: "other", label: "その他" },
 ] as const;
 
+const wearMonthOptions = Array.from({ length: 12 }, (_, index) => index + 1);
+
 const imageExtensions: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -52,6 +56,14 @@ const imageExtensions: Record<string, string> = {
 const maxImageSize = 5 * 1024 * 1024;
 const fieldClassName =
   "mt-2 w-full rounded-xl border border-[#dce3dd] bg-white px-4 py-3 text-ink outline-none transition focus:border-forest focus:ring-4 focus:ring-sage";
+
+function formatWearMonth(value: number) {
+  return `${value}月`;
+}
+
+function getCurrentWearMonth() {
+  return new Date().getMonth() + 1;
+}
 
 export function TemplateGrid({
   templates: initialTemplates,
@@ -64,10 +76,17 @@ export function TemplateGrid({
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedTemplateMonth, setSelectedTemplateMonth] = useState<
+    number | "all"
+  >("all");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUpdatingWearMonth, setIsUpdatingWearMonth] = useState(false);
   const [removeImage, setRemoveImage] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [wearMonthError, setWearMonthError] = useState("");
+  const [wearMonthFeedback, setWearMonthFeedback] = useState("");
+  const [monthToAdd, setMonthToAdd] = useState(getCurrentWearMonth);
 
   const activeTemplate = templates.find(
     (template) => template.id === activeTemplateId,
@@ -75,19 +94,150 @@ export function TemplateGrid({
   const selectedTemplate = templates.find(
     (template) => template.id === selectedTemplateId,
   );
+  const activeRecordedWearMonths = new Set(activeTemplate?.wear_months ?? []);
+  const activeManualWearMonths = new Set(
+    activeTemplate?.manual_wear_months ?? [],
+  );
+  const activeDisplayedWearMonths = [
+    ...new Set([
+      ...activeRecordedWearMonths,
+      ...activeManualWearMonths,
+    ]),
+  ].sort((a, b) => b - a);
+  const recordedWearMonths = new Set(selectedTemplate?.wear_months ?? []);
+  const manualWearMonths = new Set(
+    selectedTemplate?.manual_wear_months ?? [],
+  );
+  const displayedWearMonths = [
+    ...new Set([...recordedWearMonths, ...manualWearMonths]),
+  ].sort((a, b) => b - a);
   const visibleWardrobeItems =
     selectedCategory === "all"
       ? wardrobeItems
       : wardrobeItems.filter((item) => item.category === selectedCategory);
+  const visibleTemplates =
+    selectedTemplateMonth === "all"
+      ? templates
+      : templates.filter(
+          (template) =>
+            template.wear_months.includes(selectedTemplateMonth) ||
+            template.manual_wear_months.includes(selectedTemplateMonth),
+        );
 
   function openEditor(template: OutfitTemplate) {
     setErrorMessage("");
     setFeedbackMessage("");
+    setWearMonthError("");
+    setWearMonthFeedback("");
+    setMonthToAdd(getCurrentWearMonth());
     setSelectedCategory("all");
     setSelectedItemIds(template.items.map((item) => item.id));
     setRemoveImage(false);
     setSelectedTemplateId(null);
     setActiveTemplateId(template.id);
+  }
+
+  async function addManualWearMonth() {
+    if (!activeTemplate || !monthToAdd) {
+      setWearMonthError("追加する月を選択してください。");
+      return;
+    }
+
+    setIsUpdatingWearMonth(true);
+    setWearMonthError("");
+    setWearMonthFeedback("");
+    const wearMonth = monthToAdd;
+    try {
+      const response = await fetch("/api/outfit-templates/wear-months", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          templateId: activeTemplate.id,
+          month: wearMonth,
+        }),
+      });
+      const result = (await response.json()) as {
+        error?: string;
+        alreadyExists?: boolean;
+      };
+      if (!response.ok) {
+        throw new Error(result.error ?? "着用月を追加できませんでした。");
+      }
+
+      setTemplates((current) =>
+        current.map((template) =>
+          template.id === activeTemplate.id &&
+          !template.manual_wear_months.includes(wearMonth)
+            ? {
+                ...template,
+                manual_wear_months: [
+                  ...template.manual_wear_months,
+                  wearMonth,
+                ],
+              }
+            : template,
+        ),
+      );
+      setWearMonthFeedback(
+        result.alreadyExists
+          ? `${formatWearMonth(wearMonth)}は既に手動登録されています。`
+          : `${formatWearMonth(wearMonth)}を着用月に追加しました。`,
+      );
+    } catch (error) {
+      setWearMonthError(
+        error instanceof Error
+          ? error.message
+          : "着用月を追加できませんでした。",
+      );
+    } finally {
+      setIsUpdatingWearMonth(false);
+    }
+  }
+
+  async function removeManualWearMonth(wearMonth: number) {
+    if (!activeTemplate) {
+      return;
+    }
+
+    setIsUpdatingWearMonth(true);
+    setWearMonthError("");
+    setWearMonthFeedback("");
+    try {
+      const response = await fetch("/api/outfit-templates/wear-months", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          templateId: activeTemplate.id,
+          month: wearMonth,
+        }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(result.error ?? "手動の着用月を解除できませんでした。");
+      }
+
+      setTemplates((current) =>
+        current.map((template) =>
+          template.id === activeTemplate.id
+            ? {
+                ...template,
+                manual_wear_months: template.manual_wear_months.filter(
+                  (month) => month !== wearMonth,
+                ),
+              }
+            : template,
+        ),
+      );
+      setWearMonthFeedback(`${formatWearMonth(wearMonth)}の手動登録を解除しました。`);
+    } catch (error) {
+      setWearMonthError(
+        error instanceof Error
+          ? error.message
+          : "手動の着用月を解除できませんでした。",
+      );
+    } finally {
+      setIsUpdatingWearMonth(false);
+    }
   }
 
   async function handleUpdate(event: FormEvent<HTMLFormElement>) {
@@ -275,54 +425,94 @@ export function TemplateGrid({
         </p>
       )}
 
-      {templates.length ? (
-        <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {templates.map((template) => (
-            <article
-              key={template.id}
-              className="relative overflow-hidden rounded-2xl border border-[#e7ebe7] bg-white shadow-sm"
+      {templates.length > 0 && (
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+          <label className="text-sm font-medium">
+            着用月で絞り込み
+            <select
+              value={selectedTemplateMonth}
+              onChange={(event) => {
+                const value = event.target.value;
+                setSelectedTemplateMonth(
+                  value === "all" ? "all" : Number(value),
+                );
+              }}
+              className="ml-2 rounded-xl border border-[#dce3dd] bg-white px-3 py-2 text-ink outline-none focus:border-forest focus:ring-4 focus:ring-sage"
             >
-              <button
-                type="button"
-                aria-label={`${template.name}の詳細を表示`}
-                onClick={() => setSelectedTemplateId(template.id)}
-                className="block w-full text-left focus:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-forest"
-              >
-                {template.image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={template.image_url}
-                    alt={template.name}
-                    loading="lazy"
-                    className="aspect-[4/5] w-full bg-sage object-cover"
-                  />
-                ) : (
-                  <div className="flex aspect-[4/5] items-center justify-center bg-sage text-sm text-forest">
-                    画像なし
-                  </div>
-                )}
-                <div className="p-4">
-                  <p className="truncate font-semibold" title={template.name}>
-                    {template.name}
-                  </p>
-                  <p className="mt-1 text-sm text-muted">
-                    {template.items.length} 点のアイテム
-                  </p>
-                  <p className="mt-2 text-xs text-forest">タップして詳細</p>
-                </div>
-              </button>
-              <button
-                type="button"
-                aria-label={`${template.name}を編集`}
-                title="編集・削除"
-                onClick={() => openEditor(template)}
-                className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-xl text-ink shadow-md transition hover:bg-sage focus:outline-none focus:ring-4 focus:ring-sage"
-              >
-                ⋮
-              </button>
-            </article>
-          ))}
+              <option value="all">すべて</option>
+              {wearMonthOptions.map((month) => (
+                <option key={month} value={month}>
+                  {month}月
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="text-sm text-muted">
+            {visibleTemplates.length} 件表示
+          </p>
         </div>
+      )}
+
+      {templates.length ? (
+        visibleTemplates.length ? (
+          <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {visibleTemplates.map((template) => (
+              <article
+                key={template.id}
+                className="relative overflow-hidden rounded-2xl border border-[#e7ebe7] bg-white shadow-sm"
+              >
+                <button
+                  type="button"
+                  aria-label={`${template.name}の詳細を表示`}
+                  onClick={() => {
+                    setWearMonthError("");
+                    setWearMonthFeedback("");
+                    setSelectedTemplateId(template.id);
+                  }}
+                  className="block w-full text-left focus:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-forest"
+                >
+                  {template.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={template.image_url}
+                      alt={template.name}
+                      loading="lazy"
+                      className="aspect-[4/5] w-full bg-sage object-cover"
+                    />
+                  ) : (
+                    <div className="flex aspect-[4/5] items-center justify-center bg-sage text-sm text-forest">
+                      画像なし
+                    </div>
+                  )}
+                  <div className="p-4">
+                    <p className="truncate font-semibold" title={template.name}>
+                      {template.name}
+                    </p>
+                    <p className="mt-1 text-sm text-muted">
+                      {template.items.length} 点のアイテム
+                    </p>
+                    <p className="mt-2 text-xs text-forest">タップして詳細</p>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  aria-label={`${template.name}を編集`}
+                  title="編集・削除"
+                  onClick={() => openEditor(template)}
+                  className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-xl text-ink shadow-md transition hover:bg-sage focus:outline-none focus:ring-4 focus:ring-sage"
+                >
+                  ⋮
+                </button>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-6 rounded-2xl border border-dashed border-[#cbd8ce] bg-white px-6 py-10 text-center">
+            <p className="font-semibold">
+              {selectedTemplateMonth}月のタグが付いたテンプレートはありません
+            </p>
+          </div>
+        )
       ) : (
         <div className="mt-6 rounded-2xl border border-dashed border-[#cbd8ce] bg-white px-6 py-12 text-center">
           <p className="font-semibold">まだテンプレートがありません</p>
@@ -385,6 +575,36 @@ export function TemplateGrid({
                 {selectedTemplate.memo}
               </p>
             )}
+            <section className="mt-5">
+              <h3 className="text-sm font-semibold">着用した月</h3>
+              {displayedWearMonths.length > 0 ? (
+                <ul className="mt-2 flex flex-wrap gap-2">
+                  {displayedWearMonths.map((month) => {
+                    const wasRecorded = recordedWearMonths.has(month);
+
+                    return (
+                      <li
+                        key={month}
+                        className="rounded-full bg-sage px-3 py-1 text-sm font-medium text-forest"
+                      >
+                        <span>
+                          {formatWearMonth(month)}
+                          {wasRecorded && (
+                            <span className="ml-1 text-xs text-muted">
+                              記録
+                            </span>
+                          )}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="mt-2 text-sm text-muted">
+                  着用月はまだ登録されていません。
+                </p>
+              )}
+            </section>
             <section className="mt-5">
               <h3 className="text-sm font-semibold">
                 着用アイテム ({selectedTemplate.items.length})
@@ -505,6 +725,95 @@ export function TemplateGrid({
                   className={fieldClassName}
                 />
               </label>
+
+              <section className="rounded-2xl border border-[#e7ebe7] bg-[#f7f8f6] p-4">
+                <h3 className="text-sm font-semibold">着用した月</h3>
+                {activeDisplayedWearMonths.length > 0 ? (
+                  <ul className="mt-3 flex flex-wrap gap-2">
+                    {activeDisplayedWearMonths.map((month) => {
+                      const wasRecorded =
+                        activeRecordedWearMonths.has(month);
+                      const wasManuallyAdded =
+                        activeManualWearMonths.has(month);
+
+                      return (
+                        <li
+                          key={month}
+                          className="flex items-center gap-2 rounded-full bg-sage py-1 pl-3 pr-1.5 text-sm font-medium text-forest"
+                        >
+                          <span>
+                            {formatWearMonth(month)}
+                            {wasRecorded && (
+                              <span className="ml-1 text-xs text-muted">
+                                記録
+                              </span>
+                            )}
+                          </span>
+                          {wasManuallyAdded && (
+                            <button
+                              type="button"
+                              aria-label={`${formatWearMonth(month)}の手動登録を解除`}
+                              disabled={isUpdatingWearMonth}
+                              onClick={() => removeManualWearMonth(month)}
+                              className="rounded-full px-2 py-1 text-xs text-forest transition hover:bg-white disabled:opacity-50"
+                            >
+                              解除
+                            </button>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="mt-3 text-sm text-muted">
+                    着用月はまだ登録されていません。
+                  </p>
+                )}
+                {wearMonthError && (
+                  <p
+                    role="alert"
+                    className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700"
+                  >
+                    {wearMonthError}
+                  </p>
+                )}
+                {wearMonthFeedback && (
+                  <p
+                    role="status"
+                    className="mt-3 rounded-xl bg-white px-3 py-2 text-sm text-forest"
+                  >
+                    {wearMonthFeedback}
+                  </p>
+                )}
+                <div className="mt-3 flex flex-wrap items-end gap-3">
+                  <label className="text-sm font-medium">
+                    過去の着用月を追加
+                    <select
+                      value={monthToAdd}
+                      onChange={(event) =>
+                        setMonthToAdd(Number(event.target.value))
+                      }
+                      className="mt-1 block rounded-lg border border-[#dce3dd] bg-white px-3 py-2 text-ink outline-none focus:border-forest focus:ring-4 focus:ring-sage"
+                    >
+                      {Array.from({ length: 12 }, (_, index) => index + 1).map(
+                        (month) => (
+                          <option key={month} value={month}>
+                            {month}月
+                          </option>
+                        ),
+                      )}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    disabled={isUpdatingWearMonth}
+                    onClick={addManualWearMonth}
+                    className="rounded-xl border border-[#dce3dd] bg-white px-4 py-2 text-sm font-semibold text-forest transition hover:bg-sage disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isUpdatingWearMonth ? "更新中..." : "月を追加"}
+                  </button>
+                </div>
+              </section>
 
               {activeTemplate.image_url && (
                 <div>

@@ -5,7 +5,14 @@ import { OutfitForm } from "./outfit-form";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewOutfitPage() {
+type NewOutfitPageProps = {
+  searchParams: Promise<{ templateId?: string | string[] }>;
+};
+
+export default async function NewOutfitPage({
+  searchParams,
+}: NewOutfitPageProps) {
+  const { templateId: requestedTemplateId } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -35,6 +42,11 @@ export default async function NewOutfitPage() {
         Array.isArray(item) ? item : item ? [item] : [],
       ),
     })) ?? [];
+  const initialTemplateId =
+    typeof requestedTemplateId === "string" &&
+    templates.some((template) => template.id === requestedTemplateId)
+      ? requestedTemplateId
+      : null;
 
   return (
     <main className="min-h-screen">
@@ -48,7 +60,8 @@ export default async function NewOutfitPage() {
           今日のコーデを記録
         </h1>
         <p className="mt-3 text-muted">
-          日付やメモ、着用したアイテムを記録しましょう。
+          コーデ名、全体画像、着用アイテムのいずれかを登録してください。
+          日付やメモは必要に応じて入力できます。
         </p>
 
         {error ? (
@@ -70,7 +83,11 @@ export default async function NewOutfitPage() {
                 `supabase/outfits.sql`を再実行してください。
               </p>
             )}
-            <OutfitForm items={items ?? []} templates={templates} />
+            <OutfitForm
+              items={items ?? []}
+              templates={templates}
+              initialTemplateId={initialTemplateId}
+            />
           </>
         )}
       </section>

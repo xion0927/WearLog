@@ -6,6 +6,12 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
+function getWearMonthNumber(value: number | string) {
+  const month =
+    typeof value === "number" ? value : Number(value.slice(5, 7));
+  return Number.isInteger(month) && month >= 1 && month <= 12 ? month : null;
+}
+
 export default async function ClosetPage() {
   const supabase = await createClient();
   const {
@@ -23,7 +29,7 @@ export default async function ClosetPage() {
   const { data: templateData, error: templatesError } = await supabase
     .from("outfit_templates")
     .select(
-      "id, name, memo, image_url, created_at, outfit_template_items(item:items(id, name, category, image_url))",
+      "id, name, memo, image_url, created_at, outfit_template_items(item:items(id, name, category, image_url)), outfit_template_wears(wear_month), outfit_template_manual_months(wear_month)",
     )
     .order("created_at", { ascending: false });
   const templates =
@@ -33,16 +39,32 @@ export default async function ClosetPage() {
       memo: template.memo,
       image_url: template.image_url,
       created_at: template.created_at,
+      wear_months: template.outfit_template_wears.flatMap(
+        ({ wear_month }) => {
+          const month = getWearMonthNumber(wear_month);
+          return month === null ? [] : [month];
+        },
+      ),
+      manual_wear_months: template.outfit_template_manual_months.flatMap(
+        ({ wear_month }) => {
+          const month = getWearMonthNumber(wear_month);
+          return month === null ? [] : [month];
+        },
+      ),
       items: template.outfit_template_items.flatMap(({ item }) =>
         Array.isArray(item) ? item : item ? [item] : [],
       ),
     })) ?? [];
   const wardrobeItems = (items ?? []).map(
-    ({ id, name, category, image_url }) => ({
+    ({ id, name, category, image_url, created_at }) => ({
       id,
       name,
       category,
       image_url,
+      created_at,
+      templates: templates.filter((template) =>
+        template.items.some((templateItem) => templateItem.id === id),
+      ),
     }),
   );
 
@@ -93,7 +115,7 @@ export default async function ClosetPage() {
               服の一覧を読み込めませんでした: {itemsError.message}
             </p>
           ) : (
-            <ItemGrid items={items ?? []} />
+            <ItemGrid items={wardrobeItems} />
           )}
         </section>
       </section>

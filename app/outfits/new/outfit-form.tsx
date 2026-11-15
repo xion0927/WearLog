@@ -44,6 +44,7 @@ type OutfitTemplate = {
 type OutfitFormProps = {
   items: WardrobeItem[];
   templates: OutfitTemplate[];
+  initialTemplateId?: string | null;
 };
 
 function getLocalDate() {
@@ -54,17 +55,38 @@ function getLocalDate() {
   return `${year}-${month}-${day}`;
 }
 
-export function OutfitForm({ items, templates }: OutfitFormProps) {
+function getDateBasedOutfitName(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return `${year}年${month}月${day}日のコーデ`;
+}
+
+export function OutfitForm({
+  items,
+  templates,
+  initialTemplateId,
+}: OutfitFormProps) {
   const router = useRouter();
-  const [date, setDate] = useState(getLocalDate);
-  const [saveMode, setSaveMode] = useState<"new" | "template">("new");
-  const [selectedTemplateId, setSelectedTemplateId] = useState("");
-  const [memo, setMemo] = useState("");
-  const [saveAsTemplate, setSaveAsTemplate] = useState(true);
-  const [templateName, setTemplateName] = useState(
-    `${getLocalDate()}のコーデ`,
+  const initialTemplate = templates.find(
+    (template) => template.id === initialTemplateId,
   );
-  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [date, setDate] = useState(getLocalDate);
+  const [saveMode, setSaveMode] = useState<"new" | "template">(
+    initialTemplate ? "template" : "new",
+  );
+  const [selectedTemplateId, setSelectedTemplateId] = useState(
+    initialTemplate?.id ?? "",
+  );
+  const [name, setName] = useState(initialTemplate?.name ?? "");
+  const [memo, setMemo] = useState(initialTemplate?.memo ?? "");
+  const [saveAsTemplate, setSaveAsTemplate] = useState(true);
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>(
+    () =>
+      initialTemplate?.items
+        .filter((templateItem) =>
+          items.some((item) => item.id === templateItem.id),
+        )
+        .map((item) => item.id) ?? [],
+  );
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -79,6 +101,7 @@ export function OutfitForm({ items, templates }: OutfitFormProps) {
   function chooseSaveMode(mode: "new" | "template") {
     setSaveMode(mode);
     setSelectedTemplateId("");
+    setName("");
     setMemo("");
     setSelectedItemIds([]);
   }
@@ -86,6 +109,7 @@ export function OutfitForm({ items, templates }: OutfitFormProps) {
   function chooseTemplate(templateId: string) {
     const template = templates.find((candidate) => candidate.id === templateId);
     setSelectedTemplateId(templateId);
+    setName(template?.name ?? "");
     setMemo(template?.memo ?? "");
     setSelectedItemIds(
       template?.items
@@ -109,18 +133,14 @@ export function OutfitForm({ items, templates }: OutfitFormProps) {
     setErrorMessage("");
 
     const form = event.currentTarget;
-    if (!date) {
-      setErrorMessage("日付を選択してください。");
-      return;
-    }
     if (saveMode === "template" && !selectedTemplate) {
       setErrorMessage("使用するテンプレートを選択してください。");
       return;
     }
-    if (saveMode === "new" && saveAsTemplate && !templateName.trim()) {
-      setErrorMessage("テンプレート名を入力してください。");
-      return;
-    }
+    const enteredName =
+      saveMode === "template" ? selectedTemplate?.name ?? "" : name.trim();
+    const outfitDate = date || getLocalDate();
+    const outfitName = enteredName || getDateBasedOutfitName(outfitDate);
 
     const formData = new FormData(form);
     const imageEntry = formData.get("image");
@@ -128,6 +148,21 @@ export function OutfitForm({ items, templates }: OutfitFormProps) {
       imageEntry instanceof File && imageEntry.size > 0 ? imageEntry : null;
     const extension = image ? imageExtensions[image.type] : undefined;
 
+    if (
+      saveMode === "new" &&
+      !enteredName &&
+      !image &&
+      selectedItemIds.length === 0
+    ) {
+      setErrorMessage(
+        "コーデ名、全体画像、着用した服のいずれかを登録してください。",
+      );
+      return;
+    }
+    if (enteredName.length > 80) {
+      setErrorMessage("コーデ名は80文字以内で入力してください。");
+      return;
+    }
     if (image && !extension) {
       setErrorMessage("JPEG、PNG、WebP、GIF形式の画像を選択してください。");
       return;
@@ -158,7 +193,7 @@ export function OutfitForm({ items, templates }: OutfitFormProps) {
       .from("outfits")
       .select("image_url")
       .eq("user_id", user.id)
-      .eq("date", date)
+      .eq("date", outfitDate)
       .maybeSingle();
 
     if (existingOutfitError) {
@@ -200,15 +235,13 @@ export function OutfitForm({ items, templates }: OutfitFormProps) {
       (saveMode === "template" ? selectedTemplate?.imageUrl : null) ??
       null;
     const { error: saveError } = await supabase.rpc("save_outfit_with_template", {
-      p_date: date,
+      p_date: outfitDate,
+      p_name: outfitName,
       p_memo: memo.trim() || null,
       p_image_url: effectiveImageUrl,
       p_item_ids: selectedItemIds,
       p_save_as_template: saveMode === "new" && saveAsTemplate,
-      p_template_name:
-        saveMode === "new" && saveAsTemplate
-          ? templateName.trim()
-          : null,
+      p_template_id: saveMode === "template" ? selectedTemplate?.id ?? null : null,
     });
 
     if (saveError) {
@@ -234,6 +267,7 @@ export function OutfitForm({ items, templates }: OutfitFormProps) {
       cleanupWarning = cleanupResult.warning ?? "";
     }
 
+    setName("");
     setMemo("");
     setSelectedItemIds([]);
     setDate(getLocalDate());
@@ -241,8 +275,8 @@ export function OutfitForm({ items, templates }: OutfitFormProps) {
     router.push(
       `/dashboard?outfitSaved=${encodeURIComponent(
         `${saveMode === "new" && saveAsTemplate
-          ? `${date}のコーデを保存し、テンプレート「${templateName.trim()}」にも登録しました。`
-          : `${date}のコーデを上書き保存しました。`}${cleanupWarning ? ` ${cleanupWarning}` : ""}`,
+          ? `「${outfitName}」を${outfitDate}のコーデとして保存し、テンプレートにも登録しました。`
+          : `「${outfitName}」を${outfitDate}のコーデとして保存しました。`}${cleanupWarning ? ` ${cleanupWarning}` : ""}`,
       )}`,
     );
   }
@@ -358,6 +392,20 @@ export function OutfitForm({ items, templates }: OutfitFormProps) {
         </section>
       )}
 
+      {saveMode === "new" && (
+        <label className="block text-sm font-medium">
+          コーデ名
+          <input
+            type="text"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            maxLength={80}
+            className={fieldClassName}
+            placeholder="例：白シャツとデニムのコーデ"
+          />
+        </label>
+      )}
+
       <label className="block text-sm font-medium">
         日付
         <input
@@ -365,9 +413,11 @@ export function OutfitForm({ items, templates }: OutfitFormProps) {
           type="date"
           value={date}
           onChange={(event) => setDate(event.target.value)}
-          required
           className={fieldClassName}
         />
+        <span className="mt-1 block text-xs font-normal text-muted">
+          未入力の場合は今日の日付で登録します。
+        </span>
       </label>
 
       <label className="block text-sm font-medium">
@@ -392,26 +442,8 @@ export function OutfitForm({ items, templates }: OutfitFormProps) {
               onChange={(event) => setSaveAsTemplate(event.target.checked)}
               className="mt-0.5 h-4 w-4 accent-[#315b48] focus:ring-4 focus:ring-sage"
             />
-            <span>
-              <span className="block">テンプレートとして登録する</span>
-              <span className="mt-1 block font-normal text-muted">
-                次回からこのコーデを呼び出せます。
-              </span>
-            </span>
+            <span>テンプレートとして登録する</span>
           </label>
-          {saveAsTemplate && (
-            <label className="mt-4 block text-sm font-medium">
-              テンプレート名
-              <input
-                type="text"
-                value={templateName}
-                onChange={(event) => setTemplateName(event.target.value)}
-                maxLength={80}
-                required
-                className={fieldClassName}
-              />
-            </label>
-          )}
         </fieldset>
       )}
 

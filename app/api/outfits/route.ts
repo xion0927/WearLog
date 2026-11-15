@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await supabase
     .from("outfits")
     .select(
-      "id, date, memo, image_url, outfit_items(item:items(id, name, category, image_url))",
+      "id, date, name, memo, image_url, outfit_items(item:items(id, name, category, image_url))",
     )
     .gte("date", from)
     .lte("date", to)
@@ -67,6 +67,7 @@ export async function GET(request: NextRequest) {
   const outfits = data.map((outfit) => ({
     id: outfit.id,
     date: outfit.date,
+    name: outfit.name,
     memo: outfit.memo,
     imageUrl: outfit.image_url,
     items: outfit.outfit_items.flatMap(({ item }) => (item ? [item] : [])),

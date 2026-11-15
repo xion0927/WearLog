@@ -14,6 +14,7 @@ type Outfit = {
   date: string;
   memo: string | null;
   imageUrl: string | null;
+  name: string | null;
   items: OutfitItem[];
 };
 
@@ -107,7 +108,12 @@ export function OutfitHistory() {
             "error" in result ? result.error : "コーデを読み込めませんでした。",
           );
         }
-        setOutfits(result.outfits);
+        setOutfits(
+          result.outfits.map((outfit) => ({
+            ...outfit,
+            name: outfit.name ?? `${formatLongDate(outfit.date)}のコーデ`,
+          })),
+        );
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) {
@@ -375,11 +381,16 @@ export function OutfitHistory() {
                       {preview ? "画像なし" : "記録なし"}
                     </span>
                   )}
-                  <span className="block min-h-12 px-3 py-2 text-xs text-muted">
-                    {dailyOutfits.length > 0
-                      ? `${dailyOutfits.length}件のコーデ`
-                      : "タップして詳細"}
-                  </span>
+                  {preview?.name && (
+                    <span className="block truncate px-3 pt-2 text-xs font-semibold text-forest">
+                      {preview.name}
+                    </span>
+                  )}
+                  {dailyOutfits.length === 0 && (
+                    <span className="block min-h-12 px-3 py-2 text-xs text-muted">
+                      タップして詳細
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -434,6 +445,11 @@ export function OutfitHistory() {
                       コーデあり
                     </span>
                   ) : null}
+                  {preview?.name && (
+                    <span className="mt-1 hidden truncate text-[10px] font-medium text-forest sm:block">
+                      {preview.name}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -496,6 +512,12 @@ export function OutfitHistory() {
                       <div className="flex min-h-32 items-center justify-center rounded-xl bg-[#f3f6f3] text-sm text-muted">
                         コーデ画像はありません
                       </div>
+                    )}
+
+                    {outfit.name && (
+                      <h3 className="text-lg font-semibold text-forest">
+                        {outfit.name}
+                      </h3>
                     )}
 
                     {outfit.memo && (
