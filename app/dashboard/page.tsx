@@ -63,7 +63,6 @@ export default async function DashboardPage({
             imageUrl: template.image_url,
             memo: template.memo,
             wearCount: Math.max(recordedCount, hasManualTag ? 1 : 0),
-            countIsMinimum: hasManualTag,
             items: template.outfit_template_items.flatMap(({ item }) =>
               (Array.isArray(item) ? item : item ? [item] : []).map(
                 ({ id, name, category, image_url }) => ({

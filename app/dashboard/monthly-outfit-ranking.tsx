@@ -16,7 +16,6 @@ export type MonthlyOutfitRankingItem = {
   memo: string | null;
   imageUrl: string | null;
   wearCount: number;
-  countIsMinimum: boolean;
   items: MonthlyOutfitRankingWardrobeItem[];
 };
 
@@ -172,7 +171,6 @@ export function MonthlyOutfitRanking({
                     </p>
                     <p className="mt-1 text-xs text-muted">
                       着用 {item.wearCount}回
-                      {item.countIsMinimum ? "以上" : ""}
                     </p>
                     <p className="mt-2 text-xs text-forest">タップして詳細</p>
                   </div>
@@ -224,7 +222,6 @@ export function MonthlyOutfitRanking({
                 </h2>
                 <p className="mt-2 text-sm text-muted">
                   着用 {selectedTemplate.wearCount}回
-                  {selectedTemplate.countIsMinimum ? "以上" : ""}
                 </p>
               </div>
               <button
