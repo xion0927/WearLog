@@ -75,6 +75,8 @@ export function TemplateGrid({
   );
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [createItemIds, setCreateItemIds] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedTemplateMonth, setSelectedTemplateMonth] = useState<
     number | "all"
@@ -87,6 +89,10 @@ export function TemplateGrid({
   const [wearMonthError, setWearMonthError] = useState("");
   const [wearMonthFeedback, setWearMonthFeedback] = useState("");
   const [monthToAdd, setMonthToAdd] = useState(getCurrentWearMonth);
+  const visibleCreateItems =
+    selectedCategory === "all"
+      ? wardrobeItems
+      : wardrobeItems.filter((item) => item.category === selectedCategory);
 
   const activeTemplate = templates.find(
     (template) => template.id === activeTemplateId,
@@ -135,6 +141,133 @@ export function TemplateGrid({
     setRemoveImage(false);
     setSelectedTemplateId(null);
     setActiveTemplateId(template.id);
+  }
+
+  function openCreateDialog() {
+    setErrorMessage("");
+    setCreateItemIds([]);
+    setSelectedCategory("all");
+    setIsCreateDialogOpen(true);
+  }
+
+  async function handleCreate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setErrorMessage("");
+
+    const formData = new FormData(event.currentTarget);
+    const name = String(formData.get("name") ?? "").trim();
+    const imageEntry = formData.get("image");
+    const image =
+      imageEntry instanceof File && imageEntry.size > 0 ? imageEntry : null;
+    const extension = image ? imageExtensions[image.type] : undefined;
+
+    if (name.length > 80) {
+      setErrorMessage("テンプレート名は80文字以内で入力してください。");
+      return;
+    }
+    if (!name && !image && createItemIds.length === 0) {
+      setErrorMessage(
+        "テンプレート名、全体画像、着用アイテムのいずれかを登録してください。",
+      );
+      return;
+    }
+    if (image && !extension) {
+      setErrorMessage("JPEG、PNG、WebP、GIF形式の画像を選択してください。");
+      return;
+    }
+    if (image && image.size > maxImageSize) {
+      setErrorMessage("画像サイズは5MB以下にしてください。");
+      return;
+    }
+
+    setIsSubmitting(true);
+    let imageUrl: string | null = null;
+    let uploadedImagePath: string | null = null;
+    const supabase = createClient();
+
+    try {
+      if (image && extension) {
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+        if (userError || !user) {
+          throw new Error(
+            userError
+              ? `ログイン状態を確認できませんでした: ${userError.message}`
+              : "ログインしてください。",
+          );
+        }
+
+        uploadedImagePath = `${user.id}/${crypto.randomUUID()}.${extension}`;
+        const { error: uploadError } = await supabase.storage
+          .from("outfit-images")
+          .upload(uploadedImagePath, image, {
+            contentType: image.type,
+            cacheControl: "3600",
+            upsert: false,
+          });
+        if (uploadError) {
+          throw new Error(`画像をアップロードできませんでした: ${uploadError.message}`);
+        }
+
+        imageUrl = supabase.storage
+          .from("outfit-images")
+          .getPublicUrl(uploadedImagePath).data.publicUrl;
+      }
+
+      const response = await fetch("/api/outfit-templates/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          imageUrl,
+          itemIds: createItemIds,
+        }),
+      });
+      const result = (await response.json()) as {
+        id?: string;
+        name?: string;
+        error?: string;
+      };
+      if (!response.ok || !result.id || !result.name) {
+        throw new Error(result.error ?? "テンプレートを登録できませんでした。");
+      }
+
+      const createdId = result.id;
+      const createdName = result.name;
+      setTemplates((current) => [
+        {
+          id: createdId,
+          name: createdName,
+          memo: null,
+          image_url: imageUrl,
+          created_at: new Date().toISOString(),
+          wear_months: [],
+          manual_wear_months: [],
+          items: wardrobeItems.filter((item) =>
+            createItemIds.includes(item.id),
+          ),
+        },
+        ...current,
+      ]);
+      setSelectedTemplateMonth("all");
+      setIsCreateDialogOpen(false);
+      setFeedbackMessage(`「${createdName}」をテンプレートに登録しました。`);
+    } catch (error) {
+      let cleanupMessage = "";
+      if (uploadedImagePath) {
+        const cleanupResult = await cleanupUnusedImage(imageUrl);
+        cleanupMessage = cleanupResult.warning
+          ? ` ${cleanupResult.warning}`
+          : "";
+      }
+      setErrorMessage(
+        `${error instanceof Error ? error.message : "テンプレートを登録できませんでした。"}${cleanupMessage}`,
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   async function addManualWearMonth() {
@@ -414,6 +547,13 @@ export function TemplateGrid({
             {templates.length} 件
           </p>
         </div>
+        <button
+          type="button"
+          onClick={openCreateDialog}
+          className="rounded-xl bg-forest px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#264b39] focus:outline-none focus:ring-4 focus:ring-sage"
+        >
+          テンプレートを登録
+        </button>
       </div>
 
       {feedbackMessage && (
@@ -517,8 +657,165 @@ export function TemplateGrid({
         <div className="mt-6 rounded-2xl border border-dashed border-[#cbd8ce] bg-white px-6 py-12 text-center">
           <p className="font-semibold">まだテンプレートがありません</p>
           <p className="mt-2 text-sm text-muted">
-            コーデを記録するときにテンプレートとして登録できます。
+            テンプレートを直接登録するか、コーデ記録から保存できます。
           </p>
+        </div>
+      )}
+
+      {isCreateDialogOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-ink/50 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !isSubmitting) {
+              setIsCreateDialogOpen(false);
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="template-create-title"
+            className="my-auto max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl sm:p-8"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold tracking-wide text-forest">
+                  OUTFIT TEMPLATE
+                </p>
+                <h2
+                  id="template-create-title"
+                  className="mt-2 text-2xl font-semibold"
+                >
+                  テンプレートを登録
+                </h2>
+                <p className="mt-2 text-sm text-muted">
+                  名前・全体画像・着用アイテムのいずれかだけでも登録できます。
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="閉じる"
+                disabled={isSubmitting}
+                onClick={() => setIsCreateDialogOpen(false)}
+                className="rounded-full px-3 py-1 text-2xl leading-none text-muted hover:bg-sage disabled:opacity-50"
+              >
+                ×
+              </button>
+            </div>
+
+            {errorMessage && (
+              <p
+                role="alert"
+                className="mt-5 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700"
+              >
+                {errorMessage}
+              </p>
+            )}
+
+            <form onSubmit={handleCreate} className="mt-6 space-y-5">
+              <label className="block text-sm font-medium">
+                テンプレート名（任意）
+                <input
+                  name="name"
+                  type="text"
+                  maxLength={80}
+                  className={fieldClassName}
+                  placeholder="例：白シャツとデニムのコーデ"
+                />
+              </label>
+
+              <label className="block text-sm font-medium">
+                コーデ全体の画像（任意）
+                <input
+                  name="image"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="mt-2 block w-full rounded-xl border border-[#dce3dd] bg-white px-3 py-2.5 text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-sage file:px-3 file:py-2 file:font-medium file:text-forest"
+                />
+              </label>
+
+              <fieldset>
+                <legend className="text-sm font-medium">
+                  着用アイテム（任意・{createItemIds.length}点選択中）
+                </legend>
+                {wardrobeItems.length > 0 ? (
+                  <>
+                    <div
+                      className="mt-3 flex flex-wrap gap-2"
+                      aria-label="カテゴリで絞り込み"
+                    >
+                      {categoryFilters.map((category) => {
+                        const isSelected = selectedCategory === category.value;
+                        const count =
+                          category.value === "all"
+                            ? wardrobeItems.length
+                            : wardrobeItems.filter(
+                                (item) => item.category === category.value,
+                              ).length;
+                        return (
+                          <button
+                            key={category.value}
+                            type="button"
+                            aria-pressed={isSelected}
+                            onClick={() => setSelectedCategory(category.value)}
+                            className={`rounded-full px-3 py-1.5 text-xs font-medium transition focus:outline-none focus:ring-4 focus:ring-sage ${
+                              isSelected
+                                ? "bg-forest text-white"
+                                : "border border-[#dce3dd] bg-white text-muted hover:bg-sage"
+                            }`}
+                          >
+                            {category.label}
+                            <span className="ml-1 opacity-75">{count}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      {visibleCreateItems.map((item) => (
+                        <label
+                          key={item.id}
+                          className="flex cursor-pointer items-start gap-2 rounded-xl border border-[#e7ebe7] p-3 text-sm hover:bg-sage"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={createItemIds.includes(item.id)}
+                            onChange={(event) =>
+                              setCreateItemIds((current) =>
+                                event.target.checked
+                                  ? [...current, item.id]
+                                  : current.filter((id) => id !== item.id),
+                              )
+                            }
+                            className="mt-0.5 accent-[#315b48]"
+                          />
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium">
+                              {item.name}
+                            </span>
+                            <span className="mt-0.5 block text-xs text-muted">
+                              {categories[item.category] ?? item.category}
+                            </span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="mt-2 text-sm text-muted">
+                    クローゼットに登録済みの服がありません。
+                  </p>
+                )}
+              </fieldset>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full rounded-xl bg-forest px-4 py-3 font-semibold text-white transition hover:bg-[#264b39] focus:outline-none focus:ring-4 focus:ring-sage disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSubmitting ? "登録中..." : "テンプレートを登録"}
+              </button>
+            </form>
+          </section>
         </div>
       )}
 

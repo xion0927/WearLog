@@ -60,7 +60,7 @@ export default async function NewOutfitPage({
           今日のコーデを記録
         </h1>
         <p className="mt-3 text-muted">
-          コーデ名、全体画像、着用アイテムのいずれかを登録してください。
+          新規に作成する場合、コーデ名、全体画像、着用アイテムのいずれかだけでも登録ができます。
           日付やメモは必要に応じて入力できます。
         </p>
 

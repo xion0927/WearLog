@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { SiteHeader } from "@/app/site-header";
 import { ItemForm } from "@/app/dashboard/item-form";
 import { ItemGrid } from "@/app/dashboard/item-grid";
@@ -19,7 +20,7 @@ export default async function ClosetPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return null;
+    redirect("/login?message=" + encodeURIComponent("ログインしてください。"));
   }
 
   const { data: items, error: itemsError } = await supabase

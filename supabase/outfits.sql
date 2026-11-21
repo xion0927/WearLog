@@ -666,6 +666,63 @@ $$;
 revoke all on function public.save_outfit_template(uuid, text) from public, anon;
 grant execute on function public.save_outfit_template(uuid, text) to authenticated;
 
+create or replace function public.create_outfit_template(
+  p_name text,
+  p_image_url text,
+  p_item_ids uuid[]
+)
+returns uuid
+language plpgsql
+set search_path = public
+as $$
+declare
+  current_user_id uuid := auth.uid();
+  saved_template_id uuid;
+  template_name text := nullif(btrim(p_name), '');
+begin
+  if current_user_id is null then
+    raise exception 'ログインが必要です。';
+  end if;
+
+  if template_name is null
+     and nullif(btrim(p_image_url), '') is null
+     and cardinality(coalesce(p_item_ids, '{}'::uuid[])) = 0 then
+    raise exception 'テンプレート名、全体画像、着用アイテムのいずれかを登録してください。';
+  end if;
+
+  if template_name is null then
+    template_name :=
+      'コーデテンプレート '
+        || extract(year from current_date)::integer::text
+        || '年'
+        || extract(month from current_date)::integer::text
+        || '月'
+        || extract(day from current_date)::integer::text
+        || '日';
+  end if;
+
+  if char_length(template_name) > 80 then
+    raise exception 'テンプレート名は80文字以内で入力してください。';
+  end if;
+
+  insert into public.outfit_templates (user_id, name, image_url)
+  values (current_user_id, template_name, p_image_url)
+  returning id into saved_template_id;
+
+  insert into public.outfit_template_items (template_id, item_id)
+  select saved_template_id, selected.item_id
+  from (
+    select distinct item_id
+    from unnest(coalesce(p_item_ids, '{}'::uuid[])) as selected_items(item_id)
+  ) as selected;
+
+  return saved_template_id;
+end;
+$$;
+
+revoke all on function public.create_outfit_template(text, text, uuid[]) from public, anon;
+grant execute on function public.create_outfit_template(text, text, uuid[]) to authenticated;
+
 create or replace function public.update_outfit_template(
   p_template_id uuid,
   p_name text,
